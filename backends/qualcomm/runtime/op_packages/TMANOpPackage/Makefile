@@ -32,22 +32,22 @@ HEXAGON_SDK_BASE := $(dir $(HEXAGON_SDK_ROOT))
 $(info "HEXAGON_SDK_ROOT is [${HEXAGON_SDK_ROOT}]")
 # Users should note that the tools version may change between hexagon sdk versions
 # Following combination of SDK and Tool version is supported
-HEXAGON_SDK_ROOT_V68 := $(HEXAGON_SDK_BASE)/hexagon-sdk-5.4.0
-HEXAGON_SDK_ROOT_V69 := $(HEXAGON_SDK_BASE)/hexagon-sdk-5.4.0
-HEXAGON_SDK_ROOT_V73 := $(HEXAGON_SDK_BASE)/hexagon-sdk-5.5.5
-HEXAGON_SDK_ROOT_V75 := $(HEXAGON_SDK_BASE)/hexagon-sdk-5.4.0
-HEXAGON_SDK_ROOT_V79 := $(HEXAGON_SDK_BASE)/hexagon-sdk-6.0.0
-HEXAGON_SDK_ROOT_V81 := $(HEXAGON_SDK_BASE)/hexagon-sdk-6.2.0
+HEXAGON_SDK_ROOT_V68 := $(HEXAGON_SDK_ROOT)
+HEXAGON_SDK_ROOT_V69 := $(HEXAGON_SDK_ROOT)
+HEXAGON_SDK_ROOT_V73 := $(HEXAGON_SDK_ROOT)
+HEXAGON_SDK_ROOT_V75 := $(HEXAGON_SDK_ROOT)
+HEXAGON_SDK_ROOT_V79 := $(HEXAGON_SDK_ROOT)
+HEXAGON_SDK_ROOT_V81 := $(HEXAGON_SDK_ROOT)
 #Updated to point to latest sdk to match with libQnnHtp.so
 HEXAGON_SDK_ROOT_X86 := $(HEXAGON_SDK_ROOT_V81)
 HEXAGON_TOOLS_VERSION_V68 := 8.6.02
 HEXAGON_TOOLS_VERSION_V69 := 8.6.02
 HEXAGON_TOOLS_VERSION_V73 := 8.7.06
 HEXAGON_TOOLS_VERSION_V75 := 8.7.03
-HEXAGON_TOOLS_VERSION_V79 := 8.8.02
-HEXAGON_TOOLS_VERSION_V81 := 19.0.02
+HEXAGON_TOOLS_VERSION_V79 := 19.0.07
+HEXAGON_TOOLS_VERSION_V81 := 19.0.07
 #Updated to point to latest sdk to match with libQnnHtp.so
-HEXAGON_TOOLS_VERSION_X86 := 19.0.02
+HEXAGON_TOOLS_VERSION_X86 := 19.0.07
 
 ifndef ANDROID_NDK_ROOT
 ifeq ($(MAKECMDGOALS),htp_aarch64)
@@ -72,7 +72,7 @@ LIBRARY_NAME := libQnn$(PACKAGE_NAME).so
 SUPPORTED_TARGETS = x86_64-linux-clang hexagon-v68 hexagon-v69 hexagon-v73 hexagon-v75 hexagon-v79 hexagon-v81 aarch64-android
 
 
-COMMON_CXX_FLAGS = -std=c++17 -I$(QNN_INCLUDE) -fPIC -Wall -Wreorder -Wno-missing-braces -Wno-unused-function
+COMMON_CXX_FLAGS = -std=c++17 -I$(QNN_INCLUDE) -I$(OP_INCLUDE_DIR) -fPIC -Wall -Wreorder -Wno-missing-braces -Wno-unused-function
 COMMON_CXX_FLAGS += -Werror -Wno-format -Wno-unused-command-line-argument -fvisibility=default -stdlib=libc++
 COMMON_CXX_FLAGS += -DQNN_API="__attribute__((visibility(\"default\")))"  -D__QAIC_HEADER_EXPORT="__attribute__((visibility(\"default\")))"
 
