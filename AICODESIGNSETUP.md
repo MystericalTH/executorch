@@ -85,3 +85,13 @@ cd executorch
 ./install_executorch.sh
 ./backends/qualcomm/scripts/build.sh
 ```
+
+## Build Custom Op Packages
+
+Build HexFlashAttention Op Package
+
+```bash
+cd $EXECUTORCH_ROOT
+python3 backends/qualcomm/runtime/op_packages/HexFlashAttention/build.py \
+-b build-x86 -m SM8650 --arch 79 --enable_x86_64 --build_op_package
+```
