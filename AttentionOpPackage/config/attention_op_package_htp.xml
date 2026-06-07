@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+Copyright (c) Qualcomm Innovation Center, Inc.
+All rights reserved
+
+This source code is licensed under the BSD-style license found in the
+LICENSE file in the root directory of this source tree.
+-->
+<OpDefCollection PackageName="AttentionOpPackage" Domain="aisw" Version="1.0">
+    <OpDefList>
+        <OpDef>
+            <Name>AttentionFwdOp</Name>
+            <Description>
+                <Content>
+                Flash attention forward kernel from hexagon-mlir
+                </Content>
+            </Description>
+
+            <Input>
+                <Name>query</Name>
+                <Description>
+                    <Content>query activation</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_16</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>UNDEFINED</Layout>
+                    <Text>a tensor of 4 dimension</Text>
+                </Shape>
+            </Input>
+            <Input>
+                <Name>key</Name>
+                <Description>
+                    <Content>key activation</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_16</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>UNDEFINED</Layout>
+                    <Text>a tensor of 4 dimension</Text>
+                </Shape>
+            </Input>
+            <Input>
+                <Name>value</Name>
+                <Description>
+                    <Content>value activation</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_16</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>UNDEFINED</Layout>
+                    <Text>a tensor of 4 dimension</Text>
+                </Shape>
+            </Input>
+
+            <Output>
+                <Name>output</Name>
+                <Description>
+                    <Content>output activation</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_16</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                    <Text>a tensor of 4 dimension</Text>
+                </Shape>
+            </Output>
+
+            <!--This Op is implemented on these Backends-->
+            <SupportedBackend>HTP</SupportedBackend>
+        </OpDef>
+
+    </OpDefList>
+
+</OpDefCollection>
