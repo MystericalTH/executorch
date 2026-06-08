@@ -19,19 +19,19 @@ from executorch.backends.qualcomm.export_utils import (
     get_backend_type,
     setup_common_args_and_variables,
 )
-
 from executorch.backends.qualcomm.utils.utils import (
     generate_gpu_compiler_spec,
     generate_htp_compiler_spec,
     generate_qnn_executorch_compiler_spec,
     get_soc_to_chipset_map,
 )
-from executorch.examples.qualcomm.oss_scripts.llama import (
-    LLMModelConfig,
+
+from luthexflash.models.llama import (
     SUPPORTED_LLM_MODELS,
+    LLMModelConfig,
 )
-from executorch.examples.qualcomm.oss_scripts.llama.dataset import DatasetBuilder
-from executorch.examples.qualcomm.oss_scripts.llama.decoder_constants import (
+from luthexflash.models.llama.dataset import DatasetBuilder
+from luthexflash.models.llama.decoder_constants import (
     ATTENTION_SINK_EVICTOR,
     AUDIO_ENCODER,
     DECODE_QDQ_FILENAME,
@@ -46,21 +46,19 @@ from executorch.examples.qualcomm.oss_scripts.llama.decoder_constants import (
     TOK_EMBEDDING_GRAPH_NAMES,
     VISION_ENCODER,
 )
-from executorch.examples.qualcomm.oss_scripts.llama.decoder_runtime_evaluator import (
+from luthexflash.models.llama.decoder_runtime_evaluator import (
     DefaultEval,
     SqnrEval,
     TaskEval,
 )
-
-from executorch.examples.qualcomm.oss_scripts.llama.tokenizer import TokenizerWrapper
-from executorch.examples.qualcomm.oss_scripts.llama.wrappers import (
+from luthexflash.models.llama.tokenizer import TokenizerWrapper
+from luthexflash.models.llama.wrappers import (
     HybridAttentionSinkEvictor,
-    is_attention_sink_config_equal,
     MultiModalManager,
+    is_attention_sink_config_equal,
     next_power_of_two,
 )
-from torchao.quantization.utils import compute_error
-
+from luthexflash.op_register import register_op
 
 sys.setrecursionlimit(4096)
 FORMAT = "[%(levelname)s %(asctime)s %(filename)s:%(lineno)s] %(message)s"
@@ -114,6 +112,16 @@ def compile(
         TEXT_DECODER: None,
     }
     for modality in compile_specs:
+        pte_filename = pte_filenames[modality]
+        workspace = f"/data/local/tmp/executorch/{pte_filename}"
+        op_package_config, lib_name = register_op(
+            args.op_package_dir,
+            workspace,
+            args.config_xml_path
+            or f"{args.op_package_dir}/config/example_op_package_htp.xml",
+        )
+        op_package_options = op_package_config.get_op_package_options()
+
         if is_multimodal and modality in {AUDIO_ENCODER, TEXT_ENCODER, VISION_ENCODER}:
             # Encoder quantization is enabled only when the input contains a single image in each conversation.
             # In multi‑image scenarios, we skip encoder quantization by default to preserve modality feature quality,
@@ -156,6 +164,7 @@ def compile(
                     # x86 emulator does not support shared buffer
                     shared_buffer=not args.enable_x86_64,
                     online_prepare=args.online_prepare,
+                    op_package_options=op_package_options,
                 )
             ] * len(TOK_EMBEDDING_GRAPH_NAMES)
         elif modality == TEXT_DECODER:
@@ -179,7 +188,7 @@ def compile(
                     # x86 emulator does not support shared buffer
                     shared_buffer=not args.enable_x86_64,
                     use_mha2sha=True,
-                    online_prepare=args.online_prepare,
+                    op_package_options=op_package_options,
                 )
             ] * len(DECODER_GRAPH_NAMES)
 
@@ -376,7 +385,7 @@ def _build_parser():
     parser.add_argument(
         "--decoder_model",
         choices=list(SUPPORTED_LLM_MODELS.keys()),
-        help=f"The llm model to export. Current available options are: { SUPPORTED_LLM_MODELS.keys()}",
+        help=f"The llm model to export. Current available options are: {SUPPORTED_LLM_MODELS.keys()}",
         required=True,
     )
 
@@ -594,34 +603,36 @@ def export_llama(args) -> None:
         )
     if TASKS_EVAL in args.eval_methods and args.tasks is None:
         raise RuntimeError("Please provide --tasks to eval perplexity")
-    assert (
-        args.decoder_model in SUPPORTED_LLM_MODELS
-    ), f"Unknown decoder_model: {args.decoder_model}."
+    assert args.decoder_model in SUPPORTED_LLM_MODELS, (
+        f"Unknown decoder_model: {args.decoder_model}."
+    )
     decoder_model_config = SUPPORTED_LLM_MODELS[args.decoder_model]
     logging.info(f"*** {args.decoder_model} ***\n%s", str(decoder_model_config))
 
     if args.max_context_len is None:
         args.max_context_len = args.max_seq_len
     if args.use_attention_sink is None:
-        assert (
-            args.max_context_len >= args.max_seq_len
-        ), "Please ensure max_context_len is >= max_seq_len"
+        assert args.max_context_len >= args.max_seq_len, (
+            "Please ensure max_context_len is >= max_seq_len"
+        )
 
     # Specify pte filenames
     if args.model_mode == "kv":
         pte_filename = "kv_llama_qnn"
     elif args.model_mode == "hybrid":
-        assert (
-            args.max_context_len >= args.prefill_ar_len
-        ), "Please ensure max_context_len is >= prefill_ar_len"
+        assert args.max_context_len >= args.prefill_ar_len, (
+            "Please ensure max_context_len is >= prefill_ar_len"
+        )
         pte_filename = "hybrid_llama_qnn"
     elif args.model_mode == "lookahead":
-        assert (
-            args.max_context_len >= args.prefill_ar_len
-        ), "Please ensure max_context_len is >= prefill_ar_len"
+        assert args.max_context_len >= args.prefill_ar_len, (
+            "Please ensure max_context_len is >= prefill_ar_len"
+        )
         assert args.max_context_len > next_power_of_two(
             (args.window + args.gcap) * (args.ngram - 1)
-        ), "Please ensure max_context_len is > next_power_of_two((args.window + args.gcap) * (args.ngram - 1))"
+        ), (
+            "Please ensure max_context_len is > next_power_of_two((args.window + args.gcap) * (args.ngram - 1))"
+        )
         pte_filename = "lookahead_llama_qnn"
     else:
         raise RuntimeError(f"Unknown model_mode: {args.model_mode}.")
@@ -673,9 +684,9 @@ def export_llama(args) -> None:
         ]
     )
     # TODO: Implement attention sink support for multimodal models (vision/audio).
-    assert (
-        not is_multimodal or args.use_attention_sink is None
-    ), "Multimodal models currently do not support attention sink feature."
+    assert not is_multimodal or args.use_attention_sink is None, (
+        "Multimodal models currently do not support attention sink feature."
+    )
 
     if args.pre_gen_pte:
         text_decoder_pte_path = f"{args.pre_gen_pte}/{pte_filenames[TEXT_DECODER]}.pte"
