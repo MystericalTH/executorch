@@ -87,15 +87,16 @@ def main(args):
 
     BATCH = 1
     HEAD = 32
+    KV_HEAD = 8
     SEQ_LEN = 64
-    KV_SEQ_LEN = 256
-    EMBEDDING = 2048
+    KV_SEQ_LEN = 128
+    EMBEDDING = 512
     mask = torch.tril(torch.randn(1, 1, SEQ_LEN, SEQ_LEN))
     mask[mask == 0] = float("-inf")
     sample_input = (
         torch.randn(BATCH, HEAD, SEQ_LEN, EMBEDDING),
-        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING),
-        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING),
+        torch.randn(BATCH, KV_HEAD, KV_SEQ_LEN, EMBEDDING),
+        torch.randn(BATCH, KV_HEAD, KV_SEQ_LEN, EMBEDDING),
         mask,
     )
 

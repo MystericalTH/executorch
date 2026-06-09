@@ -10,8 +10,7 @@ from torch.library import impl, Library
 
 hex_flash_lib = Library("hex_flash", "DEF")
 
-hex_flash_lib.define(
-    """
+hex_flash_lib.define("""
     flash_attention(
         Tensor query,
         Tensor key,
@@ -19,8 +18,7 @@ hex_flash_lib.define(
         Tensor? attn_mask=None,
         float? scale=None
     ) -> Tensor
-    """
-)
+    """)
 
 
 @impl(hex_flash_lib, "flash_attention", dispatch_key="CompositeExplicitAutograd")
@@ -36,11 +34,11 @@ def flash_attention_impl(
         key=key,
         value=value,
         scale=scale,
+        enable_gqa=True,
     )
 
 
-hex_flash_lib.define(
-    """
+hex_flash_lib.define("""
     flash_attention.out(
         Tensor query,
         Tensor key,
@@ -50,8 +48,7 @@ hex_flash_lib.define(
         *,
         Tensor(a!) output
     ) -> Tensor(a!)
-    """
-)
+    """)
 
 
 @impl(
@@ -73,6 +70,7 @@ def flash_attention_out_impl(
         key=key,
         value=value,
         scale=scale,
+        enable_gqa=True,
     )
     out.copy_(result)
     return out

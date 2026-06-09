@@ -14,6 +14,44 @@
 #include "hfa_ops.h"
 #include "hfa_utils.h"
 
+#ifndef PREPARE_DISABLED
+API_EXPORT QuickShape broadcast_kv_split_start(
+    Replacement& rpx,
+    Split_Context const& splitinfo,
+    int num_heads,
+    int num_kv_heads) {
+  assert(num_heads % num_kv_heads == 0);
+  const size_t group_size = num_heads / num_kv_heads;
+  const size_t group_idx = splitinfo.start / group_size;
+  size_t dims[4] = {0, group_idx, 0, 0};
+  return QuickShape(dims[0], dims[1], dims[2], dims[3]);
+}
+
+API_EXPORT QuickShape broadcast_kv_split_size(
+    Replacement& rpx,
+    Split_Context const& splitinfo,
+    OpRef const& orig) {
+  size_t dims[4] = {
+      orig.dim(rpx.graph(), 0),
+      0,
+      orig.dim(rpx.graph(), 2),
+      orig.dim(rpx.graph(), 3)};
+  dims[1] = splitinfo.size;
+  return QuickShape(dims[0], dims[1], dims[2], dims[3]);
+}
+
+#define BROADCAST_SLICE(ARG, CTX)   \
+  AUTOSPLIT_SLICE(                  \
+      ARG,                          \
+      AUTOSPLIT_SHAPEFN_APPLY(      \
+          broadcast_kv_split_start, \
+          CTX,                      \
+          DIM_HEIGHT("query"),      \
+          DIM_HEIGHT("key")),       \
+      AUTOSPLIT_SHAPEFN_APPLY(broadcast_kv_split_size, CTX, ARG))
+
+#endif
+
 BEGIN_PKG_OP_DEFINITION(PKG_FlashAttention);
 
 static Qnn_Scalar_t sg_opDefaultScaleScalar = {
@@ -113,7 +151,7 @@ DEF_PACKAGE_OPTIMIZATION(
            "attn_mask",
            "scale")))
 
-// Head Tiling
+// Head Tiling with GQA support
 DEF_PACKAGE_OPTIMIZATION(
     EARLY + 1,
     Op("FlashAttention", "query", "key", "value", "attn_mask", "scale"),
@@ -126,8 +164,8 @@ DEF_PACKAGE_OPTIMIZATION(
         1,
         Op("FlashAttention",
            TYPICAL_SLICE("query", "I"),
-           TYPICAL_SLICE("key", "I"),
-           TYPICAL_SLICE("value", "I"),
+           BROADCAST_SLICE("key", "I"),
+           BROADCAST_SLICE("value", "I"),
            "attn_mask",
            "scale")))
 
