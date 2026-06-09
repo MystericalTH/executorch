@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import IntEnum, unique
 
 QNN_OP_PACKAGE_NAME_QTI_AISW = "qti.aisw"
+QNN_OP_PACKAGE_NAME_HEX_FLASH = "HexFlashAttention"
 
 # Below constants should be same as those in QNN headers.
 # Maybe someday we should expose these constants by pybind
@@ -327,6 +328,12 @@ class OpElu:
 class OpExpandDims:
     op_name: str = "ExpandDims"
     param_axis: str = "axis"
+
+
+@dataclass(init=False, frozen=True)
+class OpFlashAttention:
+    op_name: str = "FlashAttention"
+    param_scale: str = "scale"
 
 
 @dataclass(init=False, frozen=True)

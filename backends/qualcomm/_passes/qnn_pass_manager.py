@@ -266,7 +266,7 @@ class QnnPassManager(PassManager):
         self.add_pass(DecomposeBinaryAlpha())
         self.add_pass(DecomposeCDist())
         self.add_pass(DecomposePad())
-        self.add_pass(DecomposeScaledDotProductAttention())
+        # self.add_pass(DecomposeScaledDotProductAttention())
         self.add_pass(DecomposeRoll())
         self.add_pass(DecomposeSelectScatter())
         self.add_pass(DecomposeThreshold())
