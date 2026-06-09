@@ -85,18 +85,18 @@ def main(args):
         f"{args.op_package_dir}/build/aarch64-android/{lib_name}.so",
     ]
 
-    BATCH = 16
+    BATCH = 1
     HEAD = 32
     SEQ_LEN = 64
     KV_SEQ_LEN = 128
     EMBEDDING = 2048
-    mask = torch.tril(torch.randn(1, 1, SEQ_LEN, SEQ_LEN, dtype=torch.float16))
+    mask = torch.tril(torch.randn(1, 1, SEQ_LEN, SEQ_LEN))
     mask[mask == 0] = float("-inf")
     sample_input = (
-        torch.randn(BATCH, HEAD, SEQ_LEN, EMBEDDING, dtype=torch.float16),
-        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING, dtype=torch.float16),
-        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING, dtype=torch.float16),
-        mask.to(torch.float16),
+        torch.randn(BATCH, HEAD, SEQ_LEN, EMBEDDING),
+        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING),
+        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING),
+        mask,
     )
 
     build_executorch_binary(
@@ -162,8 +162,9 @@ def main(args):
     x86_golden = instance(*sample_input)
     device_output = torch.from_numpy(
         np.fromfile(
-            os.path.join(output_data_folder, "output_0_0.raw"), dtype=np.float16
-        )
+            os.path.join(output_data_folder, "output_0_0.raw"),
+            dtype=np.float32,
+        ),
     ).reshape(x86_golden.size())
     result = torch.all(
         torch.isclose(x86_golden, device_output, rtol=1e-3, atol=1e-3)

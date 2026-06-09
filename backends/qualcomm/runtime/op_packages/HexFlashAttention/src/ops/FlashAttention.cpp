@@ -42,6 +42,41 @@ DEF_TENSOR_PROPERTIES(
     Tcm("*", "query"),
     MainMemory("..."))
 
+#define CAST_FP16(ARG)  \
+  WITH_SIZE(            \
+      ARG,              \
+      WITH_OUTPUT_TYPE( \
+          DType::Float16, 0, 1.0f, Op(FROM_DEFAULT_PACKAGE("Cast"), ARG)))
+
+// FP32 -> FP16 -> FP32
+DEF_PACKAGE_OPTIMIZATION_WITH_FLAGS(
+    GRAPH_CLEANUP,
+    relaxed_precision_flag,
+    Op("FlashAttention", "query", "key", "value", "attn_mask", "scale"),
+    AND(EQ(DTYPE_OF("query"), DType::Float32),
+        EQ(DTYPE_OF("key"), DType::Float32),
+        EQ(DTYPE_OF("value"), DType::Float32),
+        EQ(DTYPE_OF("attn_mask"), DType::Float32),
+        EQ(DTYPE_OF("scale"), DType::Float32),
+        EQ(DTYPE_OF("*"), DType::Float32)),
+    WITH_OUTPUT_TYPE(
+        DType::Float32,
+        0,
+        1.0f,
+        Op(FROM_DEFAULT_PACKAGE("Cast"),
+           WITH_SIZE(
+               "*",
+               WITH_OUTPUT_TYPE(
+                   DType::Float16,
+                   0,
+                   1.0f,
+                   Op("FlashAttention",
+                      CAST_FP16("query"),
+                      CAST_FP16("key"),
+                      CAST_FP16("value"),
+                      CAST_FP16("attn_mask"),
+                      "scale"))))))
+
 // Batch Tiling
 DEF_PACKAGE_OPTIMIZATION(
     EARLY,
