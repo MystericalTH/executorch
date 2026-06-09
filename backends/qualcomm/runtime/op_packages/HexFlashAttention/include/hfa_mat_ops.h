@@ -98,3 +98,19 @@ static inline void hvx_Vhf_mat_transpose64Nrx64(
     out_vec_ptr[i] = tmp_vec_ptr[(i % nrow_chunks) * 64 + int(i / nrow_chunks)];
   }
 }
+
+// Assumes that `Mask` covers `In`
+// Assumes mask starts at row 0
+static inline void hvx_Vhf_mat_maskadd_Vhf(
+    Float16* In_ptr,
+    const Float16* Mask_ptr,
+    uint16_t In_nrow,
+    uint16_t Mask_ncol_vec,
+    uint16_t Mask_cstart_vec) {
+  auto In_vec_ptr = (HVX_Vector*)In_ptr;
+  auto Mask_vec_ptr = (HVX_Vector*)Mask_ptr;
+  for (uint16_t i = 0; i < In_nrow; ++i) {
+    In_vec_ptr[i] = Q6_Vhf_vadd_VhfVhf(
+        In_vec_ptr[i], Mask_vec_ptr[i * Mask_ncol_vec + Mask_cstart_vec]);
+  }
+}

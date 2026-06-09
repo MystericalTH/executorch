@@ -61,8 +61,6 @@ static inline HVX_Vector hvx_Vh_vfloor_VhfVhf(HVX_Vector Vu, HVX_Vector* Vd) {
   expval_v = Q6_Vuh_vlsr_VuhR(round_f, 10);
   const_v = Q6_Vh_vsplat_R(0x1F);
   expval_v = Q6_V_vand_VV(expval_v, const_v);
-  //    HVX_VectorPred qpred_denormalized_vq = Q6_Q_vcmp_eq_VwVw(expval_v,
-  //    const_zero_v); // XXX: not supported
   const_v = Q6_Vh_vsplat_R(0x000F); // 15
   expval_v = Q6_Vh_vsub_VhVh(expval_v, const_v); // exponent - offset 15
 

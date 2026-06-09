@@ -23,6 +23,7 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
     Float16* query_ptr,
     const Float16* mm_key_ptr,
     const Float16* mm_value_ptr,
+    const Float16* mm_attn_mask_ptr,
     Float16* out_acc_ptr,
     Float16* kv_ptr,
     Float16* qk_mul_ptr,
@@ -31,6 +32,7 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
     const HVX_Vector l_vec,
     const Float16 scale_val,
     const size_t curr_b,
+    const size_t kv_blocks,
     const size_t qk_emb_len,
     const size_t v_emb_len) {
   auto acc_vec_ptr = (HVX_Vector*)out_acc_ptr;
@@ -49,7 +51,9 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
   hvx_Vhf_multimpy_VhfVhf(
       qk_mul_vec_ptr, Q6_Vh_vsplat_R(scale_val.raw()), KV_BLOCK_LEN);
 
-  // need to *=attn_mask here
+  // += attn_mask
+  hvx_Vhf_mat_maskadd_Vhf(
+      qk_mul_ptr, mm_attn_mask_ptr, Q_BLOCK_LEN, kv_blocks, curr_b);
 
   // transpose to align for row-wise ops
   hvx_Vhf_mat_transpose64x64(qk_mul_ptr);
@@ -113,6 +117,7 @@ static inline std::array<HVX_Vector, 2> hfa_process_block_oneq(
     Float16* query_ptr,
     const Float16* mm_key_ptr,
     const Float16* mm_value_ptr,
+    const Float16* mm_attn_mask_ptr,
     Float16* out_acc_ptr,
     Float16* kv_ptr,
     Float16* qk_mul_ptr,
@@ -121,6 +126,7 @@ static inline std::array<HVX_Vector, 2> hfa_process_block_oneq(
     const HVX_Vector l_vec,
     const Float16 scale_val,
     const size_t curr_b,
+    const size_t kv_blocks,
     const size_t qk_emb_len,
     const size_t v_emb_len) {
   auto row_num_vecs = v_emb_len / 64;
@@ -139,7 +145,8 @@ static inline std::array<HVX_Vector, 2> hfa_process_block_oneq(
   // scale qk
   hvx_Vhf_multimpy_VhfVhf(qk_mul_vec_ptr, Q6_Vh_vsplat_R(scale_val.raw()), 1);
 
-  // need to *=attn_mask here
+  // += attn_mask
+  hvx_Vhf_mat_maskadd_Vhf(qk_mul_ptr, mm_attn_mask_ptr, 1, kv_blocks, curr_b);
 
   // new_max: one vec max lane reduce -> max_val filled vec
   HVX_Vector new_max_vec =

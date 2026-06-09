@@ -33,6 +33,7 @@ def flash_attention_impl(
         query=query,
         key=key,
         value=value,
+        attn_mask=attn_mask,
         scale=scale,
         enable_gqa=True,
     )
@@ -69,6 +70,7 @@ def flash_attention_out_impl(
         query=query,
         key=key,
         value=value,
+        attn_mask=attn_mask,
         scale=scale,
         enable_gqa=True,
     )

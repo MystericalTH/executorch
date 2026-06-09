@@ -224,6 +224,7 @@ GraphStatus flashattentionImpl(
   Float16* query_ptr = query.data_ptr();
   Float16* key_ptr = key.data_ptr();
   Float16* value_ptr = value.data_ptr();
+  Float16* attn_mask_ptr = attn_mask.data_ptr();
   Float16* out_ptr = out_0.data_ptr();
 
   auto [out_acc_ptr, kv_ptr, qk_mul_ptr, tmp_ptr] =
@@ -246,6 +247,7 @@ GraphStatus flashattentionImpl(
         query_ptr,
         key_ptr,
         value_ptr,
+        attn_mask_ptr,
         out_acc_ptr,
         kv_ptr,
         qk_mul_ptr,
@@ -254,6 +256,7 @@ GraphStatus flashattentionImpl(
         l_vec,
         scale_val,
         b,
+        kv_blocks,
         qk_emb_len,
         v_emb_len);
 
@@ -291,6 +294,7 @@ GraphStatus flashattentionOneQImpl(
   Float16* query_ptr = query.data_ptr();
   Float16* key_ptr = key.data_ptr();
   Float16* value_ptr = value.data_ptr();
+  Float16* attn_mask_ptr = attn_mask.data_ptr();
   Float16* out_ptr = out_0.data_ptr();
 
   auto [_, kv_ptr, qk_mul_ptr, tmp_ptr] =
@@ -311,6 +315,7 @@ GraphStatus flashattentionOneQImpl(
         query_ptr,
         key_ptr,
         value_ptr,
+        attn_mask_ptr,
         out_ptr,
         kv_ptr,
         qk_mul_ptr,
@@ -319,6 +324,7 @@ GraphStatus flashattentionOneQImpl(
         l_vec,
         scale_val,
         b,
+        kv_blocks,
         qk_emb_len,
         v_emb_len);
 
