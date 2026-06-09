@@ -12,7 +12,7 @@
                     <Content>Query tensor</Content>
                 </Description>
                 <Mandatory>true</Mandatory>
-                <Datatype>QNN_DATATYPE_UFIXED_POINT_16</Datatype>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
                 <Shape>
                     <Rank>4D</Rank>
                     <Layout>NHWC</Layout>
@@ -24,7 +24,7 @@
                     <Content>Key tensor</Content>
                 </Description>
                 <Mandatory>true</Mandatory>
-                <Datatype>QNN_DATATYPE_UFIXED_POINT_16</Datatype>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
                 <Shape>
                     <Rank>4D</Rank>
                     <Layout>NHWC</Layout>
@@ -36,7 +36,7 @@
                     <Content>Value tensor</Content>
                 </Description>
                 <Mandatory>true</Mandatory>
-                <Datatype>QNN_DATATYPE_UFIXED_POINT_16</Datatype>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
                 <Shape>
                     <Rank>4D</Rank>
                     <Layout>NHWC</Layout>
@@ -47,8 +47,8 @@
                 <Description>
                     <Content>Attention mask</Content>
                 </Description>
-                <Mandatory>false</Mandatory>
-                <Datatype>QNN_DATATYPE_UFIXED_POINT_16</Datatype>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
                 <Shape>
                     <Rank>4D</Rank>
                     <Layout>NHWC</Layout>
@@ -60,7 +60,7 @@
                     <Content>Output tensor</Content>
                 </Description>
                 <Mandatory>true</Mandatory>
-                <Datatype>QNN_DATATYPE_UFIXED_POINT_16</Datatype>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
                 <Shape>
                     <Rank>4D</Rank>
                     <Layout>NHWC</Layout>

@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import subprocess
 import sys
@@ -22,13 +23,13 @@ from executorch.examples.qualcomm.utils import make_output_dir
 
 # example model
 class Model(torch.nn.Module):
-    def forward(self, query, key, value, attn_mask):
+    def forward(self, query: torch.Tensor, key, value, attn_mask):
         return torch.ops.hex_flash.flash_attention.default(
             query=query,
             key=key,
             value=value,
             attn_mask=attn_mask,
-            scale=0.5,
+            scale=1 / math.sqrt(query.size(3)),
         )
 
 
@@ -53,24 +54,21 @@ def main(args):
 
     instance = Model()
     pte_filename = "hex_flash_attention"
-    mask = torch.tril(torch.randn(1, 1, 100, 100))
-    mask[mask == 0] = float("-inf")
-    sample_input = (
-        torch.randn(1, 4, 100, 64),
-        torch.randn(1, 4, 100, 64),
-        torch.randn(1, 4, 100, 64),
-        mask,
-    )
     workspace = f"/data/local/tmp/executorch/{pte_filename}"
 
     # op package setup
-    op_package_config = get_hex_flash_op_package_config(args.op_package_dir, args.arch)
+    op_package_config = get_hex_flash_op_package_config(args.op_package_dir, workspace)
     lib_name = f"libQnn{op_package_config.op_package_name}"
 
     if args.build_op_package:
         _run(["rm", "-rf", "build"], cwd=args.op_package_dir)
         _run(
-            ["make", "htp_x86", "htp_aarch64", f"htp_v{args.arch}"],
+            [
+                "make",
+                "htp_x86",
+                "htp_aarch64",
+                f"htp_v{args.arch}",
+            ],
             cwd=args.op_package_dir,
         )
         _run(
@@ -87,6 +85,20 @@ def main(args):
         f"{args.op_package_dir}/build/aarch64-android/{lib_name}.so",
     ]
 
+    BATCH = 16
+    HEAD = 32
+    SEQ_LEN = 64
+    KV_SEQ_LEN = 128
+    EMBEDDING = 2048
+    mask = torch.tril(torch.randn(1, 1, SEQ_LEN, SEQ_LEN, dtype=torch.float16))
+    mask[mask == 0] = float("-inf")
+    sample_input = (
+        torch.randn(BATCH, HEAD, SEQ_LEN, EMBEDDING, dtype=torch.float16),
+        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING, dtype=torch.float16),
+        torch.randn(BATCH, HEAD, KV_SEQ_LEN, EMBEDDING, dtype=torch.float16),
+        mask.to(torch.float16),
+    )
+
     build_executorch_binary(
         model=instance,
         qnn_config=qnn_config,
@@ -94,8 +106,6 @@ def main(args):
         dataset=[sample_input],
         op_package_options=op_package_options,
     )
-
-    print("build success")
 
     # collect output data
     output_data_folder = f"{args.artifact}/outputs"
@@ -135,7 +145,7 @@ def main(args):
             pte_path=f"{args.artifact}/{pte_filename}.pte",
             workspace=workspace,
         )
-        adb.push(inputs=sample_input, files=op_package_paths)
+        adb.push(inputs=[sample_input], files=op_package_paths)
         if args.debug:
             adb.execute(custom_runner_cmd="logcat -c")
             adb.execute(
@@ -152,10 +162,17 @@ def main(args):
     x86_golden = instance(*sample_input)
     device_output = torch.from_numpy(
         np.fromfile(
-            os.path.join(output_data_folder, "output_0_0.raw"), dtype=np.float32
+            os.path.join(output_data_folder, "output_0_0.raw"), dtype=np.float16
         )
     ).reshape(x86_golden.size())
-    result = torch.all(torch.isclose(x86_golden, device_output, atol=1e-2)).tolist()
+    result = torch.all(
+        torch.isclose(x86_golden, device_output, rtol=1e-3, atol=1e-3)
+    ).tolist()
+
+    glob_pct_error = (
+        torch.sum(torch.abs(device_output - x86_golden).to(torch.float64))
+        / torch.sum(torch.abs(x86_golden).to(torch.float64))
+    ).item() * 100
 
     if args.ip and args.port != -1:
         with Client((args.ip, args.port)) as conn:
@@ -169,8 +186,13 @@ def main(args):
     else:
         print(f"is_close? {result}")
         if not result:
-            print(f"x86_golden {x86_golden}")
-            print(f"device_out {device_output}")
+            print(f"x86_golden {x86_golden.shape}\n{x86_golden}")
+            print(f"device_out {device_output.shape}\n{device_output}")
+
+    print("Max Abs Error:", torch.abs(device_output - x86_golden).max().item())
+    print("Mean Abs Error", torch.abs(device_output - x86_golden).mean().item())
+    print("Abs Pct Error:", glob_pct_error, "%")
+    print("No. of nan:", torch.isnan(device_output).sum().item())
 
 
 if __name__ == "__main__":

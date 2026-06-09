@@ -35,7 +35,6 @@ def flash_attention_impl(
         query=query,
         key=key,
         value=value,
-        attn_mask=attn_mask,
         scale=scale,
     )
 
@@ -61,11 +60,11 @@ hex_flash_lib.define(
     dispatch_key="CompositeExplicitAutograd",
 )
 def flash_attention_out_impl(
-    query,
-    key,
-    value,
-    attn_mask=None,
-    scale=None,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    scale: float = None,
     *,
     out,
 ) -> torch.Tensor:
@@ -73,7 +72,6 @@ def flash_attention_out_impl(
         query=query,
         key=key,
         value=value,
-        attn_mask=attn_mask,
         scale=scale,
     )
     out.copy_(result)
@@ -82,7 +80,7 @@ def flash_attention_out_impl(
 
 def get_hex_flash_op_package_config(
     op_package_dir: str = "backends/qualcomm/runtime/op_packages/HexFlashAttention",
-    arch: str = "79",
+    workspace="",
 ):
     xml_path = f"{op_package_dir}/config/HexFlashAttention.xml"
     op_package_config = QnnCustomOpPackageBuilder(
@@ -95,16 +93,12 @@ def get_hex_flash_op_package_config(
     op_package_config.register_implementation(
         target=QnnExecuTorchOpPackageTarget.HTP,
         platform=QnnExecuTorchOpPackagePlatform.AARCH64_ANDROID,
-        op_package_path=os.path.abspath(
-            f"{op_package_dir}/build/hexagon-v{arch}/{lib_name}_HTP.so"
-        ),
+        op_package_path=f"{workspace}/{lib_name}_HTP.so",
     )
     op_package_config.register_implementation(
         target=QnnExecuTorchOpPackageTarget.CPU,
         platform=QnnExecuTorchOpPackagePlatform.AARCH64_ANDROID,
-        op_package_path=os.path.abspath(
-            f"{op_package_dir}/build/hexagon-v{arch}/{lib_name}.so"
-        ),
+        op_package_path=f"{workspace}/{lib_name}.so",
     )
     op_package_config.register_implementation(
         target=QnnExecuTorchOpPackageTarget.CPU,
