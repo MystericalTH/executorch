@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpDefCollection PackageName="HexFlashAttention" Domain="" Version="1.0">
+    <OpDefList>
+        <OpDef>
+            <Name>FlashAttention</Name>
+            <Description>
+                <Content>Hexagon NPU Flash Attention</Content>
+            </Description>
+            <Input>
+                <Name>query</Name>
+                <Description>
+                    <Content>Query tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Input>
+            <Input>
+                <Name>key</Name>
+                <Description>
+                    <Content>Key tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Input>
+            <Input>
+                <Name>value</Name>
+                <Description>
+                    <Content>Value tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Input>
+            <Input>
+                <Name>attn_mask</Name>
+                <Description>
+                    <Content>Attention mask</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Input>
+            <Output>
+                <Name>output</Name>
+                <Description>
+                    <Content>Output tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Output>
+            <Parameter>
+                <Name>scale</Name>
+                <Description>
+                    <Content>Scale</Content>
+                </Description>
+                <Mandatory>false</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>SCALAR</Rank>
+                </Shape>
+                <Default>0</Default>
+            </Parameter>
+            <SupportedBackend>HTP</SupportedBackend>
+        </OpDef>
+    </OpDefList>
+</OpDefCollection>
