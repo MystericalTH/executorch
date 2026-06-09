@@ -74,6 +74,7 @@ from luthexflash.models.llama.static_llm_quant_recipe import (
     InternVL3_1B_QuantRecipe,
     Llama3_1BQuantRecipe,
     Llama3_3BQuantRecipe,
+    Llama3_8B_QuantRecipe,
     LlamaStories110MQuantRecipe,
     LlamaStories260KQuantRecipe,
     Phi4MiniQuantRecipe,
@@ -81,6 +82,7 @@ from luthexflash.models.llama.static_llm_quant_recipe import (
     Qwen2_5_1_5BQuantRecipe,
     Qwen3_0_6BQuantRecipe,
     Qwen3_1_7BQuantRecipe,
+    Qwen3_8B_QuantRecipe,
     Smollm2QuantRecipe,
     Smollm3QuantRecipe,
     SmolVLMQuantRecipe,
@@ -598,3 +600,39 @@ class SmolVLM_500M(LLMModelConfig):
     r2 = False
     r3 = False
     quant_recipe = SmolVLMQuantRecipe
+
+
+@register_llm_model("llama3-8b")
+@dataclass(init=False, frozen=True)
+class Llama3_8B(LLMModelConfig):
+    repo_id: str = "meta-llama/Meta-Llama-3-8B-Instruct"
+    params_path: str = os.path.join(
+        BASE_DIR, "../../../Meta-Llama-3-8B-Instruct/config.json"
+    )
+    convert_weights = None
+    transform_weight = True
+    instruct_model = True
+    num_sharding = 1
+    masked_softmax = True
+    seq_mse_candidates = 0
+    r1 = False
+    r2 = False
+    r3 = False
+    quant_recipe = Llama3_8B_QuantRecipe
+
+
+@register_llm_model("qwen3-8b")
+@dataclass(init=False, frozen=True)
+class Qwen3_8B(LLMModelConfig):
+    repo_id: str = "Qwen/Qwen3-8B-Instruct"
+    params_path: str = os.path.join(BASE_DIR, "../../../Qwen3-8B-Instruct/config.json")
+    convert_weights = convert_qwen3_weights
+    transform_weight = False
+    instruct_model = True
+    num_sharding = 1
+    masked_softmax = True
+    seq_mse_candidates = 0
+    r1 = False
+    r2 = False
+    r3 = True
+    quant_recipe = Qwen3_8B_QuantRecipe

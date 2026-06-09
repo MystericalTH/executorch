@@ -16,44 +16,6 @@ from functools import partial
 from typing import Any, Dict, List
 
 import torch
-from executorch.backends.qualcomm._passes import FoldQDQ, I64toI32, TagQuantIO
-from executorch.backends.qualcomm._passes.build_quant_io import BuildQuantIo
-from executorch.backends.qualcomm._passes.qnn_pass_manager import (
-    get_capture_program_passes,
-)
-from executorch.backends.qualcomm._passes.utils import (
-    get_passes_dependency_for_capture_program,
-)
-from executorch.backends.qualcomm.builders.utils import is_graph_output
-from executorch.backends.qualcomm.export_utils import make_quantizer
-from executorch.backends.qualcomm.quantizer.quantizer import QuantDtype
-from executorch.backends.qualcomm.utils.constants import (
-    QCOM_PASS_ACTIVATE_KEY,
-    QCOM_PASS_ARGS_KWARGS_DEFAULTS_KEY,
-)
-from executorch.backends.qualcomm.utils.utils import (
-    convert_linear_to_conv2d,
-    to_edge_transform_and_lower_to_qnn,
-    update_spill_fill_size,
-)
-from executorch.devtools.backend_debug import print_delegation_info
-from executorch.examples.models.llama.hf_download import (
-    download_and_convert_hf_checkpoint,
-)
-from executorch.examples.models.llama.source_transformation.quantize import (
-    get_quant_embedding_transform,
-)
-from executorch.exir.backend.compile_spec_schema import CompileSpec
-from executorch.exir.capture._config import ExecutorchBackendConfig
-from executorch.exir.dialects._ops import ops as exir_ops
-from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
-from executorch.extension.llm.custom_ops import model_sharding
-from executorch.extension.llm.export.builder import DType
-from torchao.prototype.spinquant import apply_spinquant
-from torchao.quantization.pt2e import MinMaxObserver
-from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
-from transformers import AutoModel, AutoModelForSpeechSeq2Seq
-
 from luthexflash.models.llama import (
     LLM_VARIANT_ARCHS,
     LLMModelConfig,
@@ -100,6 +62,49 @@ from luthexflash.models.llama.wrappers.base_component import (
     log_info,
     process_model_args,
 )
+from luthexflash.utils.convert import (
+    convert_linear_to_qlinear,
+    convert_qlinear_to_linear,
+    convert_qlinear_to_tman_linear,
+)
+from torchao.prototype.spinquant import apply_spinquant
+from torchao.quantization.pt2e import MinMaxObserver
+from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
+from transformers import AutoModel, AutoModelForSpeechSeq2Seq
+
+from executorch.backends.qualcomm._passes import FoldQDQ, I64toI32, TagQuantIO
+from executorch.backends.qualcomm._passes.build_quant_io import BuildQuantIo
+from executorch.backends.qualcomm._passes.qnn_pass_manager import (
+    get_capture_program_passes,
+)
+from executorch.backends.qualcomm._passes.utils import (
+    get_passes_dependency_for_capture_program,
+)
+from executorch.backends.qualcomm.builders.utils import is_graph_output
+from executorch.backends.qualcomm.export_utils import make_quantizer
+from executorch.backends.qualcomm.quantizer.quantizer import QuantDtype
+from executorch.backends.qualcomm.utils.constants import (
+    QCOM_PASS_ACTIVATE_KEY,
+    QCOM_PASS_ARGS_KWARGS_DEFAULTS_KEY,
+)
+from executorch.backends.qualcomm.utils.utils import (
+    convert_linear_to_conv2d,
+    to_edge_transform_and_lower_to_qnn,
+    update_spill_fill_size,
+)
+from executorch.devtools.backend_debug import print_delegation_info
+from executorch.examples.models.llama.hf_download import (
+    download_and_convert_hf_checkpoint,
+)
+from executorch.examples.models.llama.source_transformation.quantize import (
+    get_quant_embedding_transform,
+)
+from executorch.exir.backend.compile_spec_schema import CompileSpec
+from executorch.exir.capture._config import ExecutorchBackendConfig
+from executorch.exir.dialects._ops import ops as exir_ops
+from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
+from executorch.extension.llm.custom_ops import model_sharding
+from executorch.extension.llm.export.builder import DType
 
 
 class TextDecoder(Component):
@@ -237,12 +242,44 @@ class TextDecoder(Component):
                 qkv_split=True,
             )
 
+        if self.control_args.gptq_dir:
+            from gptqmodel.nn_modules.qlinear.torch import TorchLinear
+            from gptqmodel.quantization.config import QuantizeConfig
+
+            qcfg = QuantizeConfig.from_pretrained(self.control_args.gptq_dir)
+            if qcfg.desc_act:
+                raise RuntimeError("desc_act=True is unsupported right now.")
+            qlinear_cls = partial(
+                TorchLinear,
+                bits=qcfg.bits,
+                group_size=qcfg.group_size,
+                desc_act=qcfg.desc_act,
+                sym=qcfg.sym,
+                pack_dtype=qcfg.pack_dtype,
+                device=qcfg.device,
+                adapter=qcfg.adapter,
+            )
+            for layer in decoder.layers:
+                convert_linear_to_qlinear(layer.attention, qlinear_cls)
+                convert_linear_to_qlinear(layer.feed_forward, qlinear_cls)
+
         # perform model transformation
         for layer in decoder.layers:
-            if getattr(layer.attention, "prepare_attention_conv", None):
-                layer.attention.prepare_attention_conv()
-            if getattr(layer.feed_forward, "prepare_feedfoward_conv", None):
-                layer.feed_forward.prepare_feedfoward_conv()
+            if self.control_args.gptq_dir:
+                # TODO: optimize the performance when needed
+                if self.control_args.use_tman:
+                    if getattr(layer.attention, "prepare_tman", None):
+                        layer.attention.prepare_tman(do_permute=False, use_sha=False)
+                    convert_qlinear_to_tman_linear(layer.feed_forward)
+                else:
+                    convert_qlinear_to_linear(layer.attention)
+                    if getattr(layer.attention, "prepare_sha", None):
+                        layer.attention.prepare_sha()
+                    convert_qlinear_to_linear(layer.feed_forward)
+                    if getattr(layer.attention, "prepare_attention_conv", None):
+                        layer.attention.prepare_attention_conv()
+                    if getattr(layer.feed_forward, "prepare_feedfoward_conv", None):
+                        layer.feed_forward.prepare_feedfoward_conv()
 
         decoder = convert_linear_to_conv2d(decoder)
 

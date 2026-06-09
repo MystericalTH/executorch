@@ -7,7 +7,6 @@ from typing import Callable, Dict
 
 import torch
 
-
 ROTARY_EMB_REGISTRY: Dict[str, Callable] = {}
 
 

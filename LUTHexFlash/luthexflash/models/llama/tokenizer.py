@@ -120,7 +120,7 @@ class TokenizerWrapper:
             runtime_tokenizer_path, tokenizer = self._from_tokenizer_model_and_bin(
                 tokenizer_model, tokenizer_bin
             )
-        elif "llama3_2" in self.decoder_model:
+        elif "llama3" in self.decoder_model:
             runtime_tokenizer_path, tokenizer = self._from_tokenizer_model(
                 tokenizer_model
             )

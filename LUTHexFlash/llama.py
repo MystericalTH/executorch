@@ -58,12 +58,14 @@ from luthexflash.models.llama.wrappers import (
     is_attention_sink_config_equal,
     next_power_of_two,
 )
+from luthexflash.node_register import register_node_visitor
 from luthexflash.op_register import register_op
 
 sys.setrecursionlimit(4096)
 FORMAT = "[%(levelname)s %(asctime)s %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
-logging.getLogger().setLevel(logging.INFO)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 # Avoid the error message "Could not initialize NNPACK! Reason: Unsupported hardware."
 torch.backends.nnpack.set_flags(False)
 
@@ -98,6 +100,7 @@ def compile(
     calibration_data,
     is_multimodal,
 ):
+    logger.info("Compiling model...")
     os.makedirs(args.artifact, exist_ok=True)
     multi_modal_mgr = MultiModalManager(control_args=args, config=decoder_model_config)
 
@@ -114,19 +117,16 @@ def compile(
     for modality in compile_specs:
         pte_filename = pte_filenames[modality]
         workspace = f"/data/local/tmp/executorch/{pte_filename}"
-        op_package_config, lib_name = register_op(
-            args.op_package_dir,
-            workspace,
-            args.config_xml_path
-            or f"{args.op_package_dir}/config/example_op_package_htp.xml",
-        )
-        op_package_options = op_package_config.get_op_package_options()
+        op_package_options, _ = register_op(args.op_package_dir, workspace)
+        logger.info("registering node visitor")
 
+        register_node_visitor()
         if is_multimodal and modality in {AUDIO_ENCODER, TEXT_ENCODER, VISION_ENCODER}:
             # Encoder quantization is enabled only when the input contains a single image in each conversation.
             # In multi‑image scenarios, we skip encoder quantization by default to preserve modality feature quality,
             # because the encoder is quite sensitive and quantization can make it harder for the model to distinguish
             # between images within the same conversation.
+            logger.info(f"Generate compiler spec for encoder quantization: {modality}")
             to_skip = len(args.image_path) > 1
             if args.backend == "htp":
                 backend_options = generate_htp_compiler_spec(
@@ -142,6 +142,7 @@ def compile(
                 backend_options=backend_options,
                 # x86 emulator does not support shared buffer
                 shared_buffer=not args.enable_x86_64,
+                op_package_options=op_package_options,
             )
             skip_quantize[modality] = to_skip
             compile_specs[modality] = encoder_compile_specs
@@ -222,6 +223,7 @@ def inference(
     calibration_data,
     is_multimodal,
 ):
+    logger.info("Performing inference")
 
     assert args.model_mode in EVAL_MODE, f"Unknown model_mode: {args.model_mode}."
 
@@ -586,6 +588,26 @@ def _build_parser():
         help="Enable automatic quant recipe suggestion in PTQ",
     )
 
+    parser.add_argument(
+        "--gptq_dir",
+        default=None,
+        type=str,
+        help="Path to the GPTQ model dir, which should contain config.json or quantize_config.json.",
+    )
+
+    parser.add_argument(
+        "--use_tman",
+        action="store_true",
+        help="Use TMANLinear instead of QNNConv2d.",
+    )
+
+    parser.add_argument(
+        "--op_package_dir",
+        help="Path to operator package generated from QNN.",
+        type=str,
+        required=True,
+    )
+
     return parser
 
 
@@ -656,11 +678,14 @@ def export_llama(args) -> None:
         args,
         decoder_model_config,
     )
+    logger.info(f"Get runtime tokenizer: {args.tokenizer_model}")
+
     runtime_tokenizer_path, tokenizer, chat_template = (
         tokenizer_wrapper.get_runtime_tokenizer(
             args.tokenizer_model, args.tokenizer_bin
         )
     )
+    logger.info("Building dataset")
 
     # Prepare dataset
     dataset_builder = DatasetBuilder(args, decoder_model_config, tokenizer_wrapper)
