@@ -62,6 +62,7 @@ static inline HVX_Vector hvx_Vhf_rsqrt_Vhf(HVX_Vector in_vec) {
   return Q6_Vhf_equals_Vqf16(temp);
 }
 
+// 1/x = (1/sqrt(x))**2
 static inline HVX_Vector hvx_Vhf_exp2rsqrt_inv_Vhf(HVX_Vector in_vec) {
   HVX_Vector rsqrt_vec = hvx_Vhf_rsqrt_Vhf(in_vec);
   return Q6_Vhf_vmpy_VhfVhf(rsqrt_vec, rsqrt_vec);

@@ -88,7 +88,7 @@ def main(args):
     BATCH = 1
     HEAD = 32
     SEQ_LEN = 64
-    KV_SEQ_LEN = 128
+    KV_SEQ_LEN = 256
     EMBEDDING = 2048
     mask = torch.tril(torch.randn(1, 1, SEQ_LEN, SEQ_LEN))
     mask[mask == 0] = float("-inf")

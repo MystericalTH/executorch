@@ -8,7 +8,7 @@
 #include "QnnOpPackage.h"
 
 // load (flat) matrix
-inline void load_mat_fp16(
+inline void hvx_Vhf_mat_load_Vhf(
     Float16* Out_ptr,
     const Float16* U_ptr,
     uint16_t U_nrow,
@@ -27,7 +27,7 @@ inline void load_mat_fp16(
 }
 
 // input must be 64x64
-static inline void mat_transpose_64x64_fp16(
+static inline void hvx_Vhf_mat_transpose64x64(
     Float16* Out_ptr,
     const Float16* U_ptr) {
   auto U_vec_ptr = (const HVX_Vector*)U_ptr;
@@ -60,11 +60,11 @@ static inline void mat_transpose_64x64_fp16(
 }
 
 // inplace transpose
-static inline void mat_transpose_64x64_fp16(Float16* ptr) {
-  mat_transpose_64x64_fp16(ptr, ptr);
+static inline void hvx_Vhf_mat_transpose64x64(Float16* ptr) {
+  hvx_Vhf_mat_transpose64x64(ptr, ptr);
 }
 
-static inline void mat_transpose_64x64N_fp16(
+static inline void hvx_Vhf_mat_transpose64x64Nc(
     Float16* Out_ptr,
     const Float16* U_ptr,
     uint16_t ncol_chunks) {
@@ -75,12 +75,12 @@ static inline void mat_transpose_64x64N_fp16(
     out_vec_ptr[i] = U_vec_ptr[(i & 63) * ncol_chunks + (i >> 6)];
   }
   for (uint16_t i = 0; i < ncol_chunks; ++i) {
-    mat_transpose_64x64_fp16(Out_ptr + i * 64 * 64);
+    hvx_Vhf_mat_transpose64x64(Out_ptr + i * 64 * 64);
   }
 }
 
 // requires a tmp memory
-static inline void mat_transpose_64Nx64_fp16(
+static inline void hvx_Vhf_mat_transpose64Ncx64(
     Float16* Out_ptr,
     const Float16* U_ptr,
     uint16_t nrow_chunks,
@@ -90,7 +90,7 @@ static inline void mat_transpose_64Nx64_fp16(
   auto out_vec_ptr = (HVX_Vector*)Out_ptr;
   auto tmp_vec_ptr = (HVX_Vector*)tmp_ptr;
   for (uint16_t i = 0; i < nrow_chunks; ++i) {
-    mat_transpose_64x64_fp16(tmp_ptr + i * 64 * 64);
+    hvx_Vhf_mat_transpose64x64(tmp_ptr + i * 64 * 64);
   }
   for (uint16_t i = 0; i < nrow_chunks * 64; ++i) {
     // i_row + row_offset = (i % row) * 64 + floor(i / row)

@@ -12,6 +12,7 @@
 
 #include "hfa_inv_op.h"
 #include "hfa_ops.h"
+#include "hfa_utils.h"
 
 BEGIN_PKG_OP_DEFINITION(PKG_FlashAttention);
 
@@ -140,10 +141,8 @@ GraphStatus flashattentionImpl(
     const PlainFloat16Tensor& attn_mask,
     const PlainFloatTensor& scale,
     PlainFloat16Tensor_TCM& scratch) {
-  // log_hfa_input(out_0, query, key, value, attn_mask, scale, scratch);
-
-  auto [qk_emb_len, v_emb_len, kv_blocks, key_size, value_size, qkmul_size] =
-      get_comp_sizes<64, 64>(key, value);
+  auto [qk_emb_len, v_emb_len, kv_blocks, key_size, value_size] =
+      get_comp_sizes<64>(key, value);
 
   Float16* query_ptr = query.data_ptr();
   Float16* key_ptr = key.data_ptr();
@@ -178,10 +177,7 @@ GraphStatus flashattentionImpl(
         scale_val,
         b,
         qk_emb_len,
-        v_emb_len,
-        key_size,
-        value_size,
-        qkmul_size);
+        v_emb_len);
 
     // update running stats
     max_vec = new_max_vec;
@@ -194,10 +190,10 @@ GraphStatus flashattentionImpl(
 
   // acc *= 1/l
   HVX_Vector inv_l_vec = hvx_Vhf_exp2rsqrt_inv_Vhf(l_vec);
-  hvx_mpy_multiple((HVX_Vector*)out_acc_ptr, inv_l_vec, v_emb_len);
+  hvx_Vhf_multimpy_VhfVhf((HVX_Vector*)out_acc_ptr, inv_l_vec, v_emb_len);
 
   // transpose to final output
-  mat_transpose_64Nx64_fp16(out_ptr, out_acc_ptr, v_emb_len / 64, tmp_ptr);
+  hvx_Vhf_mat_transpose64Ncx64(out_ptr, out_acc_ptr, v_emb_len / 64, tmp_ptr);
 
   return GraphStatus::Success;
 }
