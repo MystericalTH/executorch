@@ -33,12 +33,29 @@ GraphStatus flashattentionImpl(
     const PlainFloatTensor& scale,
     PlainFloat16Tensor_TCM& scratch);
 
-static float flashattentionCostFunc(const Op* op);
+// Handles one token query inference
+template <typename TensorType>
+GraphStatus flashattentionOneQImpl(
+    PlainFloat16Tensor_TCM& out_0,
+    const PlainFloat16Tensor_TCM& query,
+    const PlainFloat16Tensor& key,
+    const PlainFloat16Tensor& value,
+    const PlainFloat16Tensor& attn_mask,
+    const PlainFloatTensor& scale,
+    PlainFloat16Tensor_TCM& scratch);
 
 DEF_PACKAGE_OP((flashattentionImpl<Tensor>), "FlashAttention")
 
+DEF_PACKAGE_OP((flashattentionOneQImpl<Tensor>), "FlashAttentionOneQ")
+
 DEF_TENSOR_PROPERTIES(
     Op("FlashAttention", "query", "key", "value", "attn_mask", "scale"),
+    Flat("*", "query", "key", "value", "attn_mask", "scale"),
+    Tcm("*", "query"),
+    MainMemory("..."))
+
+DEF_TENSOR_PROPERTIES(
+    Op("FlashAttentionOneQ", "query", "key", "value", "attn_mask", "scale"),
     Flat("*", "query", "key", "value", "attn_mask", "scale"),
     Tcm("*", "query"),
     MainMemory("..."))
@@ -130,7 +147,29 @@ DEF_PACKAGE_OPTIMIZATION(
            TYPICAL_SLICE("attn_mask", "I"),
            "scale")))
 
+// After Q Seq Tiling, len < 8 get split into OneQ case
+DEF_PACKAGE_OPTIMIZATION(
+    EARLY + 3,
+    Op("FlashAttention", "query", "key", "value", "attn_mask", "scale"),
+    LT(DIM_WIDTH("query"), 8),
+    AUTOSPLIT(
+        2,
+        "I",
+        1,
+        Op("FlashAttentionOneQ",
+           TYPICAL_SLICE("query", "I"),
+           "key",
+           "value",
+           TYPICAL_SLICE("attn_mask", "I"),
+           "scale")))
+
 DEF_PACKAGE_PARAM_ORDER("FlashAttention", "scale", false, &sg_opDefaultScale)
+
+DEF_PACKAGE_PARAM_ORDER(
+    "FlashAttentionOneQ",
+    "scale",
+    false,
+    &sg_opDefaultScale)
 
 template <typename TensorType>
 GraphStatus flashattentionImpl(
@@ -142,7 +181,7 @@ GraphStatus flashattentionImpl(
     const PlainFloatTensor& scale,
     PlainFloat16Tensor_TCM& scratch) {
   auto [qk_emb_len, v_emb_len, kv_blocks, key_size, value_size] =
-      get_comp_sizes<64>(key, value);
+      get_comp_sizes<KV_BLOCK_LEN>(key, value);
 
   Float16* query_ptr = query.data_ptr();
   Float16* key_ptr = key.data_ptr();
@@ -150,7 +189,8 @@ GraphStatus flashattentionImpl(
   Float16* out_ptr = out_0.data_ptr();
 
   auto [out_acc_ptr, kv_ptr, qk_mul_ptr, tmp_ptr] =
-      allocate_tcm_scratch_ptrs<64, 64>(scratch, qk_emb_len, v_emb_len);
+      allocate_tcm_scratch_ptrs<Q_BLOCK_LEN, KV_BLOCK_LEN>(
+          scratch, qk_emb_len, v_emb_len);
 
   const Float16 scale_val = get_fp16_adjusted_scale(scale);
 
@@ -193,7 +233,66 @@ GraphStatus flashattentionImpl(
   hvx_Vhf_multimpy_VhfVhf((HVX_Vector*)out_acc_ptr, inv_l_vec, v_emb_len);
 
   // transpose to final output
-  hvx_Vhf_mat_transpose64Ncx64(out_ptr, out_acc_ptr, v_emb_len / 64, tmp_ptr);
+  hvx_Vhf_mat_transpose64Nrx64(out_ptr, out_acc_ptr, v_emb_len, tmp_ptr);
+
+  return GraphStatus::Success;
+}
+
+template <typename TensorType>
+GraphStatus flashattentionOneQImpl(
+    PlainFloat16Tensor_TCM& out_0,
+    const PlainFloat16Tensor_TCM& query,
+    const PlainFloat16Tensor& key,
+    const PlainFloat16Tensor& value,
+    const PlainFloat16Tensor& attn_mask,
+    const PlainFloatTensor& scale,
+    PlainFloat16Tensor_TCM& scratch) {
+  auto [qk_emb_len, v_emb_len, kv_blocks, key_size, value_size] =
+      get_comp_sizes<KV_BLOCK_LEN>(key, value);
+
+  Float16* query_ptr = query.data_ptr();
+  Float16* key_ptr = key.data_ptr();
+  Float16* value_ptr = value.data_ptr();
+  Float16* out_ptr = out_0.data_ptr();
+
+  auto [_, kv_ptr, qk_mul_ptr, tmp_ptr] =
+      allocate_tcm_scratch_ptrs<1, KV_BLOCK_LEN>(
+          scratch, qk_emb_len, v_emb_len);
+
+  const Float16 scale_val = get_fp16_adjusted_scale(scale);
+
+  HVX_Vector max_vec = Q6_Vh_vsplat_R(0xFBFF);
+  HVX_Vector l_vec = Q6_V_vzero();
+  const size_t num_vecs = v_emb_len / 64;
+  for (size_t i = 0; i < num_vecs; ++i) {
+    ((HVX_Vector*)out_ptr)[i] = Q6_V_vzero();
+  }
+
+  for (size_t b = 0; b < kv_blocks; ++b) {
+    auto [new_max_vec, new_l_vec] = hfa_process_block_oneq(
+        query_ptr,
+        key_ptr,
+        value_ptr,
+        out_ptr,
+        kv_ptr,
+        qk_mul_ptr,
+        tmp_ptr,
+        max_vec,
+        l_vec,
+        scale_val,
+        b,
+        qk_emb_len,
+        v_emb_len);
+
+    max_vec = new_max_vec;
+    l_vec = new_l_vec;
+
+    key_ptr += key_size;
+    value_ptr += value_size;
+  }
+
+  HVX_Vector inv_l_vec = hvx_Vhf_exp2rsqrt_inv_Vhf(l_vec);
+  hvx_Vhf_multimpy_VhfVhf((HVX_Vector*)out_ptr, inv_l_vec, num_vecs);
 
   return GraphStatus::Success;
 }
@@ -205,13 +304,38 @@ class FlashAttentionImplConstructorHook : public hnnx::OpHookBase {
   // This is called after the output tensors are created, but before allocation.
   virtual GraphStatus pre_allocate(hnnx::OpIoPtrs const& iop, Op& op)
       const override {
+    const size_t qk_emb_len = op.get_input(0)->dim(3);
     const size_t v_emb_len = op.get_input(2)->dim(3);
-    const size_t max_emb_len = max_i32(op.get_input(0)->dim(3), v_emb_len);
+    const size_t max_emb_len = max_i32(qk_emb_len, v_emb_len);
 
-    const size_t block0_size = v_emb_len * 64;
-    const size_t block1_size = 64 * max_emb_len;
-    const size_t block2_size = 64 * 64;
-    const size_t block3_size = 64 * max_emb_len;
+    const size_t block0_size = v_emb_len * Q_BLOCK_LEN;
+    const size_t block1_size = KV_BLOCK_LEN * max_emb_len;
+    const size_t block2_size = Q_BLOCK_LEN * KV_BLOCK_LEN;
+    const size_t block3_size = Q_BLOCK_LEN * max_emb_len;
+
+    size_t new_dims[4] = {
+        1, 1, 1, block0_size + block1_size + block2_size + block3_size};
+    GraphStatus result =
+        hnnx::change_output_tensor_shape(op, 1, iop.graph(), 4, new_dims);
+    if (result != GraphStatus::Success) {
+      errlog("!! change_output_tensor_shape failed");
+    }
+    return result;
+  }
+};
+
+class FlashAttentionOneQImplConstructorHook : public hnnx::OpHookBase {
+  // This is called after the output tensors are created, but before allocation.
+  virtual GraphStatus pre_allocate(hnnx::OpIoPtrs const& iop, Op& op)
+      const override {
+    const size_t qk_emb_len = op.get_input(0)->dim(3);
+    const size_t v_emb_len = op.get_input(2)->dim(3);
+    const size_t max_emb_len = max_i32(qk_emb_len, v_emb_len);
+
+    const size_t block0_size = 0; // block 0 is not needed
+    const size_t block1_size = KV_BLOCK_LEN * max_emb_len;
+    const size_t block2_size = 1 * KV_BLOCK_LEN;
+    const size_t block3_size = 1 * max_emb_len;
 
     size_t new_dims[4] = {
         1, 1, 1, block0_size + block1_size + block2_size + block3_size};
@@ -226,11 +350,9 @@ class FlashAttentionImplConstructorHook : public hnnx::OpHookBase {
 } // namespace
 
 CTOR_OPHOOK((flashattentionImpl<Tensor>), FlashAttentionImplConstructorHook)
+CTOR_OPHOOK(
+    (flashattentionOneQImpl<Tensor>),
+    FlashAttentionOneQImplConstructorHook)
 #endif
-
-__attribute__((unused)) static float flashattentionCostFunc(const Op* op) {
-  float cost = 0.0;
-  return cost;
-}
 
 END_PKG_OP_DEFINITION(PKG_FlashAttention);

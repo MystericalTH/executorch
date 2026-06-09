@@ -13,8 +13,6 @@ inline void hvx_Vhf_mat_load_Vhf(
     const Float16* U_ptr,
     uint16_t U_nrow,
     uint16_t U_ncol) {
-  assert(U_ncol % 64 == 0);
-
   auto U_vec_ptr = (const HVX_Vector*)U_ptr;
   auto Out_vec_ptr = (HVX_Vector*)Out_ptr;
 
@@ -67,10 +65,11 @@ static inline void hvx_Vhf_mat_transpose64x64(Float16* ptr) {
 static inline void hvx_Vhf_mat_transpose64x64Nc(
     Float16* Out_ptr,
     const Float16* U_ptr,
-    uint16_t ncol_chunks) {
+    uint16_t ncol) {
+  const uint16_t ncol_chunks = ncol / 64;
   auto U_vec_ptr = (const HVX_Vector*)U_ptr;
   auto out_vec_ptr = (HVX_Vector*)Out_ptr;
-  for (uint16_t i = 0; i < ncol_chunks * 64; ++i) {
+  for (uint16_t i = 0; i < ncol; ++i) {
     // i_row + col_offset = (i % 64) * col + floor(i / 64)
     out_vec_ptr[i] = U_vec_ptr[(i & 63) * ncol_chunks + (i >> 6)];
   }
@@ -80,19 +79,21 @@ static inline void hvx_Vhf_mat_transpose64x64Nc(
 }
 
 // requires a tmp memory
-static inline void hvx_Vhf_mat_transpose64Ncx64(
+static inline void hvx_Vhf_mat_transpose64Nrx64(
     Float16* Out_ptr,
     const Float16* U_ptr,
-    uint16_t nrow_chunks,
+    uint16_t nrow,
     Float16* tmp_ptr) {
-  load_mat_fp16(tmp_ptr, U_ptr, nrow_chunks * 64, 64);
+  const uint16_t nrow_chunks = nrow / 64;
+
+  hvx_Vhf_mat_load_Vhf(tmp_ptr, U_ptr, nrow, 64);
 
   auto out_vec_ptr = (HVX_Vector*)Out_ptr;
   auto tmp_vec_ptr = (HVX_Vector*)tmp_ptr;
   for (uint16_t i = 0; i < nrow_chunks; ++i) {
     hvx_Vhf_mat_transpose64x64(tmp_ptr + i * 64 * 64);
   }
-  for (uint16_t i = 0; i < nrow_chunks * 64; ++i) {
+  for (uint16_t i = 0; i < nrow; ++i) {
     // i_row + row_offset = (i % row) * 64 + floor(i / row)
     out_vec_ptr[i] = tmp_vec_ptr[(i % nrow_chunks) * 64 + int(i / nrow_chunks)];
   }

@@ -27,7 +27,7 @@ static inline void cpu_Vhf_baseline_matmul_VhfVhf(
   }
 }
 
-// must: n % 64 == 0
+// condition: n % 64 == 0
 static inline void hvx_Vhf_matmul_VhfVhf(
     Float16* Out_ptr,
     Float16* U_ptr,

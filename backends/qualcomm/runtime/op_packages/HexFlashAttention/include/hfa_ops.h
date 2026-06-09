@@ -38,16 +38,16 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
 
   // load K.T via transpose to TCM directly (no need to load + transpose)
   // kv_ptr(T) <- mm_key_ptr
-  hvx_Vhf_mat_transpose64x64Nc(kv_ptr, mm_key_ptr, qk_emb_len / 64);
-
-  // scale K
-  hvx_Vhf_multimpy_VhfVhf(
-      (HVX_Vector*)kv_ptr, Q6_Vh_vsplat_R(scale_val.raw()), qk_emb_len);
+  hvx_Vhf_mat_transpose64x64Nc(kv_ptr, mm_key_ptr, qk_emb_len);
 
   // Q @ K.t
   // qk_mul_ptr <- query_ptr, kv_ptr
   hvx_Vhf_matmul_VhfVhf(
       qk_mul_ptr, query_ptr, kv_ptr, Q_BLOCK_LEN, qk_emb_len, KV_BLOCK_LEN);
+
+  // scale qk
+  hvx_Vhf_multimpy_VhfVhf(
+      qk_mul_vec_ptr, Q6_Vh_vsplat_R(scale_val.raw()), KV_BLOCK_LEN);
 
   // need to *=attn_mask here
 
@@ -77,7 +77,7 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
     HVX_Vector adj_l_vec = Q6_Vhf_vmpy_VhfVhf(l_vec, adj_sfmx_vec);
     new_l_vec = hvx_Vhf_redadd_VhfVhf<KV_BLOCK_LEN>(adj_l_vec, qk_mul_vec_ptr);
 
-    // prev_acc *= adj_scale
+    // prev_acc *= adj
     hvx_Vhf_multimpy_VhfVhf(acc_vec_ptr, adj_sfmx_vec, v_emb_len);
   }
 
@@ -87,13 +87,91 @@ static inline std::array<HVX_Vector, 2> hfa_process_block(
    * Note: ATT.T is already computed in the previous step
    */
   // load V.T to TCM: kv_ptr(T) <- mm_value_ptr
-  hvx_Vhf_mat_transpose64x64Nc(kv_ptr, mm_value_ptr, v_emb_len / KV_BLOCK_LEN);
+  hvx_Vhf_mat_transpose64x64Nc(kv_ptr, mm_value_ptr, v_emb_len);
   // V.T @ ATT.T: tmp_ptr(T) <- kv_ptr(T), qk_mul_ptr(T)
   hvx_Vhf_matmul_VhfVhf(
       tmp_ptr, kv_ptr, qk_mul_ptr, v_emb_len, KV_BLOCK_LEN, Q_BLOCK_LEN);
 
   // add to acc: acc_vec_ptr(T) += tmp_ptr(T)
   hvx_Vhf_accadd_VhfVhf(acc_vec_ptr, (HVX_Vector*)tmp_ptr, v_emb_len);
+
+  return {new_max_vec, new_l_vec};
+}
+
+/**
+ * Specialized implementation with 1 token query (1, 1, 1, D)
+ * case: Out(1, 1, 1, D)
+ * condition: v_emb_len % 64 == 0
+ * Memory(elements):
+ *    - out_acc: 1 * v_emb_len
+ *    - kv_ptr: KV_BLOCK_LEN * max_emb_len
+ *    - qk_mul: 1 * KV_BLOCK_LEN
+ *    - tmp_ptr: 1 * v_emb_len
+ * M(hf, BLOCK=64, D=4096) = 270400 * 2 B = 528 KB
+ */
+static inline std::array<HVX_Vector, 2> hfa_process_block_oneq(
+    Float16* query_ptr,
+    const Float16* mm_key_ptr,
+    const Float16* mm_value_ptr,
+    Float16* out_acc_ptr,
+    Float16* kv_ptr,
+    Float16* qk_mul_ptr,
+    Float16* tmp_ptr,
+    const HVX_Vector max_vec,
+    const HVX_Vector l_vec,
+    const Float16 scale_val,
+    const size_t curr_b,
+    const size_t qk_emb_len,
+    const size_t v_emb_len) {
+  auto row_num_vecs = v_emb_len / 64;
+
+  auto acc_vec_ptr = (HVX_Vector*)out_acc_ptr;
+  auto qk_mul_vec_ptr = (HVX_Vector*)qk_mul_ptr;
+
+  // kv_ptr(T) <- mm_key_ptr
+  hvx_Vhf_mat_transpose64x64Nc(kv_ptr, mm_key_ptr, qk_emb_len);
+
+  // qk_mul_ptr <- query_ptr, kv_ptr
+  // (1,KV_BLOCK_LEN)
+  hvx_Vhf_matmul_VhfVhf(
+      qk_mul_ptr, query_ptr, kv_ptr, 1, qk_emb_len, KV_BLOCK_LEN);
+
+  // scale qk
+  hvx_Vhf_multimpy_VhfVhf(qk_mul_vec_ptr, Q6_Vh_vsplat_R(scale_val.raw()), 1);
+
+  // need to *=attn_mask here
+
+  // new_max: one vec max lane reduce -> max_val filled vec
+  HVX_Vector new_max_vec =
+      Q6_Vhf_vmax_VhfVhf(max_vec, hvx_Vhf_vmax_Vhf(qk_mul_vec_ptr[0]));
+
+  // exp2(x-max): one vec
+  qk_mul_vec_ptr[0] = hvx_Vhf_horner_exp2_Vhf(
+      Q6_Vhf_vsub_VhfVhf(qk_mul_vec_ptr[0], new_max_vec));
+
+  HVX_Vector new_l_vec;
+  if (curr_b == 0) {
+    // l_vec = l_vec + sum(qk)
+    new_l_vec = Q6_Vhf_vadd_VhfVhf(l_vec, hvx_Vhf_vsum_Vhf(qk_mul_vec_ptr[0]));
+  } else {
+    HVX_Vector max_diff = Q6_Vhf_vsub_VhfVhf(max_vec, new_max_vec);
+    HVX_Vector adj_sfmx_vec = hvx_Vhf_horner_exp2_Vhf(max_diff);
+    // l_vec = adj*l_vec + sum(qk)
+    new_l_vec = Q6_Vhf_vadd_VhfVhf(
+        Q6_Vhf_vmpy_VhfVhf(l_vec, adj_sfmx_vec),
+        hvx_Vhf_vsum_Vhf(qk_mul_vec_ptr[0]));
+
+    // acc *= adj
+    hvx_Vhf_multimpy_VhfVhf(acc_vec_ptr, adj_sfmx_vec, row_num_vecs);
+  }
+
+  // qk @ V
+  hvx_Vhf_mat_load_Vhf(kv_ptr, mm_value_ptr, KV_BLOCK_LEN, v_emb_len);
+  hvx_Vhf_matmul_VhfVhf(
+      tmp_ptr, qk_mul_ptr, kv_ptr, 1, KV_BLOCK_LEN, v_emb_len);
+
+  // add to acc
+  hvx_Vhf_accadd_VhfVhf(acc_vec_ptr, (HVX_Vector*)tmp_ptr, row_num_vecs);
 
   return {new_max_vec, new_l_vec};
 }

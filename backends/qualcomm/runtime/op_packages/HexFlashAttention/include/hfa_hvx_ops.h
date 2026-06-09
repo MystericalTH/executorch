@@ -56,3 +56,47 @@ static inline void hvx_Vhf_accadd_VhfVhf(
     acc_vec[i] = Q6_Vhf_vadd_VhfVhf(acc_vec[i], opr_vec[i]);
   }
 }
+
+static inline HVX_Vector hvx_Vhf_vsum_Vhf(HVX_Vector vec) {
+  HVX_Vector rotated = Q6_V_vror_VR(vec, 64);
+  HVX_Vector sum = Q6_Vhf_vadd_VhfVhf(vec, rotated);
+
+  rotated = Q6_V_vror_VR(sum, 32);
+  sum = Q6_Vhf_vadd_VhfVhf(sum, rotated);
+
+  rotated = Q6_V_vror_VR(sum, 16);
+  sum = Q6_Vhf_vadd_VhfVhf(sum, rotated);
+
+  rotated = Q6_V_vror_VR(sum, 8);
+  sum = Q6_Vhf_vadd_VhfVhf(sum, rotated);
+
+  rotated = Q6_V_vror_VR(sum, 4);
+  sum = Q6_Vhf_vadd_VhfVhf(sum, rotated);
+
+  rotated = Q6_V_vror_VR(sum, 2);
+  sum = Q6_Vhf_vadd_VhfVhf(sum, rotated);
+
+  return sum;
+}
+
+static inline HVX_Vector hvx_Vhf_vmax_Vhf(HVX_Vector vec) {
+  HVX_Vector rotated = Q6_V_vror_VR(vec, 64);
+  HVX_Vector max_vec = Q6_Vhf_vmax_VhfVhf(vec, rotated);
+
+  rotated = Q6_V_vror_VR(max_vec, 32);
+  max_vec = Q6_Vhf_vmax_VhfVhf(max_vec, rotated);
+
+  rotated = Q6_V_vror_VR(max_vec, 16);
+  max_vec = Q6_Vhf_vmax_VhfVhf(max_vec, rotated);
+
+  rotated = Q6_V_vror_VR(max_vec, 8);
+  max_vec = Q6_Vhf_vmax_VhfVhf(max_vec, rotated);
+
+  rotated = Q6_V_vror_VR(max_vec, 4);
+  max_vec = Q6_Vhf_vmax_VhfVhf(max_vec, rotated);
+
+  rotated = Q6_V_vror_VR(max_vec, 2);
+  max_vec = Q6_Vhf_vmax_VhfVhf(max_vec, rotated);
+
+  return max_vec;
+}

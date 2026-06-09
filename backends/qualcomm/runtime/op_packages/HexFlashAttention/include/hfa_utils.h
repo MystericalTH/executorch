@@ -49,6 +49,9 @@ static inline std::array<const size_t, 5> get_comp_sizes(
 }
 
 // Allocate TCM scratch ptrs
+//
+// Case OneQ: block0 is not needed
+//
 // - block0: out_acc (v_emb_len, Q_BLOCK_LEN)
 // - block1: (key/value) (KV_BLOCK_LEN, MAX(qk_emb_len, v_emb_len))
 // - block2: qk_mul (Q_BLOCK_LEN, KV_BLOCK_LEN)
@@ -58,12 +61,15 @@ static inline std::array<Float16*, 4> allocate_tcm_scratch_ptrs(
     PlainFloat16Tensor_TCM& scratch,
     const size_t qk_emb_len,
     const size_t v_emb_len) {
+  constexpr bool IS_ONE_Q = Q_BLOCK_LEN == 1;
+
   // out_acc
   Float16* block0_ptr = scratch.data_ptr();
   const size_t block0_size = v_emb_len * Q_BLOCK_LEN;
 
   // key or value
-  Float16* block1_ptr = block0_ptr + block0_size;
+  Float16* block1_ptr =
+      IS_ONE_Q ? scratch.data_ptr() : (block0_ptr + block0_size);
   const size_t block1_size = KV_BLOCK_LEN * max_i32(qk_emb_len, v_emb_len);
 
   // qk_mul
