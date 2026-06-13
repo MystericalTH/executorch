@@ -56,8 +56,6 @@ GraphStatus hexflashattentionqmergeImpl(
     PlainFloatTensor_TCM& out_0,
     const PlainFloatTensor_TCM& local_0,
     const PlainFloatTensor_TCM& local_1) {
-  errlog("HFAQ_Merge");
-
   const size_t emb_len = local_0.dim(1) - 2;
 
   const size_t acc_tile_size = emb_len * HFAQ_ACC_HEAD_TILE;
@@ -76,15 +74,20 @@ GraphStatus hexflashattentionqmergeImpl(
   auto [local_acc_1, local_max_1, local_l_1] =
       get_local_hvx_vec_ptrs(local_1, acc_tile_size, max_tile_size);
 
-  HVX_Vector new_max = Q6_Vsf_vmax_VsfVsf(local_max_0[0], local_max_1[0]);
+  auto local_max_vec_0 = *local_max_0;
+  auto local_l_vec_0 = *local_l_0;
+  auto local_max_vec_1 = *local_max_1;
+  auto local_l_vec_1 = *local_l_1;
+
+  HVX_Vector new_max = Q6_Vsf_vmax_VsfVsf(local_max_vec_0, local_max_vec_1);
 
   HVX_Vector adj_0 =
-      hvx_Vsf_vexp2_Vsf(Q6_Vsf_vsub_VsfVsf(local_max_0[0], new_max));
-  HVX_Vector adj_l_0 = Q6_Vsf_vmpy_VsfVsf(local_l_0[0], adj_0);
+      hvx_Vsf_vexp2_Vsf(Q6_Vsf_vsub_VsfVsf(local_max_vec_0, new_max));
+  HVX_Vector adj_l_0 = Q6_Vsf_vmpy_VsfVsf(local_l_vec_0, adj_0);
 
   HVX_Vector adj_1 =
-      hvx_Vsf_vexp2_Vsf(Q6_Vsf_vsub_VsfVsf(local_max_1[0], new_max));
-  HVX_Vector adj_l_1 = Q6_Vsf_vmpy_VsfVsf(local_l_1[0], adj_1);
+      hvx_Vsf_vexp2_Vsf(Q6_Vsf_vsub_VsfVsf(local_max_vec_1, new_max));
+  HVX_Vector adj_l_1 = Q6_Vsf_vmpy_VsfVsf(local_l_vec_1, adj_1);
 
   for (size_t i = 0; i < emb_len; ++i) {
     HVX_Vector adj_acc_0 = Q6_Vsf_vmpy_VsfVsf(local_acc_0[i], adj_0);
@@ -93,8 +96,8 @@ GraphStatus hexflashattentionqmergeImpl(
     out_acc[i] = Q6_Vsf_vadd_VsfVsf(adj_acc_0, adj_acc_1);
   }
 
-  out_max[0] = new_max;
-  out_l[0] = Q6_Vsf_vadd_VsfVsf(adj_l_0, adj_l_1);
+  *out_max = new_max;
+  *out_l = Q6_Vsf_vadd_VsfVsf(adj_l_0, adj_l_1);
 
   return GraphStatus::Success;
 }

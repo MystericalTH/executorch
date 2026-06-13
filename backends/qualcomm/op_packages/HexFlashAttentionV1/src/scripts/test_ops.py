@@ -16,113 +16,15 @@ from executorch.backends.qualcomm.export_utils import (
     SimpleADB,
 )
 
-from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests import (
-    test_exp2,
-    test_exp2_hf,
-    test_hfaq_merge,
+from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests.test_lib_definition import (
+    get_test_op_module,
 )
+
 from executorch.backends.qualcomm.serialization.qc_schema import (
     QnnExecuTorchOpPackagePlatform,
     QnnExecuTorchOpPackageTarget,
 )
 from executorch.examples.qualcomm.utils import make_output_dir
-
-from torch.library import impl, Library
-
-test_modules = [test_exp2, test_exp2_hf, test_hfaq_merge]
-
-
-def get_test_op_module(op_id: int):
-    for module in test_modules:
-        if op_id == module.TEST_OP_ID:
-            return module
-    raise Exception("unknown op id")
-
-
-test_lib = Library("hex_flash_test", "DEF")
-
-test_lib.define(
-    """
-    test_op(
-        Tensor input_0,
-        int op_id
-    ) -> Tensor
-"""
-)
-
-test_lib.define(
-    """
-    test_op.out(
-        Tensor input_0,
-        int op_id,
-        *,
-        Tensor(a!) output
-    ) -> Tensor(a!)
-"""
-)
-
-
-@impl(test_lib, "test_op", dispatch_key="CompositeExplicitAutograd")
-def test_op_impl(input_0: torch.Tensor, op_id: int) -> torch.Tensor:
-    return get_test_op_module(op_id).IMPL(input_0)
-
-
-@impl(
-    test_lib,
-    "test_op.out",
-    dispatch_key="CompositeExplicitAutograd",
-)
-def test_op_out_impl(
-    input_0: torch.Tensor, op_id: int, *, out: torch.Tensor = None
-) -> torch.Tensor:
-    result = test_op_impl(input_0, op_id)
-    out.copy_(result)
-    return out
-
-
-test_lib.define(
-    """
-    hfaq_merge(
-        Tensor local_0,
-        Tensor local_1
-    ) -> Tensor
-"""
-)
-
-test_lib.define(
-    """
-    hfaq_merge.out(
-        Tensor local_0,
-        Tensor local_1,
-        *,
-        Tensor(a!) output
-    ) -> Tensor(a!)
-"""
-)
-
-
-@impl(test_lib, "hfaq_merge", dispatch_key="CompositeExplicitAutograd")
-def hfaq_merge_impl(
-    local_0: torch.Tensor,
-    local_1: torch.Tensor,
-) -> torch.Tensor:
-    return test_hfaq_merge.mock_hfaq_merge(local_0, local_1)
-
-
-@impl(
-    test_lib,
-    "hfaq_merge.out",
-    dispatch_key="CompositeExplicitAutograd",
-)
-def hfaq_merge_out_impl(
-    local_0: torch.Tensor,
-    local_1: torch.Tensor,
-    *,
-    out: torch.Tensor = None,
-) -> torch.Tensor:
-    result = hfaq_merge_impl(local_0, local_1)
-    out.copy_(result)
-    return out
 
 
 class BaseTestModel(torch.nn.Module):
@@ -136,6 +38,19 @@ class BaseTestModel(torch.nn.Module):
         return torch.ops.hex_flash_test.test_op.default(input_0, self.op_id)
 
 
+class Base2InputTestModel(torch.nn.Module):
+    op_id: int
+
+    def __init__(self, op_id: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.op_id = op_id
+
+    def forward(self, input_0: torch.Tensor, input_1: torch.Tensor):
+        return torch.ops.hex_flash_test.test_op_2_input.default(
+            input_0, input_1, self.op_id
+        )
+
+
 def get_test_op_package_config(android_workspace: str = None):
     op_package_dir = "backends/qualcomm/op_packages/HexFlashAttentionV1"
     xml_path = f"{op_package_dir}/config/HexFlashAttentionV1.xml"
@@ -144,7 +59,9 @@ def get_test_op_package_config(android_workspace: str = None):
         xml_path=xml_path,
         torch_op_name_map={
             "TestOp": torch.ops.hex_flash_test.test_op.default,
+            "TestOp2Input": torch.ops.hex_flash_test.test_op_2_input.default,
             "HexFlashAttentionQMerge": torch.ops.hex_flash_test.hfaq_merge.default,
+            "HexFlashAttentionQLocal": torch.ops.hex_flash_test.hfaq_local.default,
         },
     )
 
@@ -192,6 +109,19 @@ def build_op_package(lib_name: str, args):
         )
 
 
+def get_model_instance(test_module):
+    try:
+        instance = test_module.TestModel()
+        print("[Test] found and using custom test model")
+    except:
+        print("[Test] using base test model")
+        if test_module.INPUT_NUM == 2:
+            instance = Base2InputTestModel(test_module.TEST_OP_ID)
+        else:
+            instance = BaseTestModel(test_module.TEST_OP_ID)
+    return instance
+
+
 def _run(cmd, cwd=None):
     subprocess.run(cmd, stdout=sys.stdout, cwd=cwd, check=True)
 
@@ -214,12 +144,9 @@ def main(args):
     os.makedirs(args.artifact, exist_ok=True)
 
     test_module = get_test_op_module(int(args.op_id))
+    print("[Test] Testing module:", test_module.__name__)
 
-    try:
-        instance = test_module.TestModel()
-    except:
-        print("using base test model")
-        instance = BaseTestModel(test_module.TEST_OP_ID)
+    instance = get_model_instance(test_module)
 
     pte_filename = "hex_flash_attention_op_" + args.op_id
     workspace = (

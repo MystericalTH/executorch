@@ -86,11 +86,11 @@ def main(args):
     ]
 
     BATCH = 1
-    Q_HEAD = 1
-    KV_HEAD = 1
-    Q_SEQ_LEN = 128
-    KV_SEQ_LEN = 128
-    EMBEDDING = 2048
+    Q_HEAD = 32
+    KV_HEAD = 32
+    Q_SEQ_LEN = 1
+    KV_SEQ_LEN = 1024
+    EMBEDDING = 128
     mask = torch.tril(torch.ones((1, 1, Q_SEQ_LEN, KV_SEQ_LEN)))
     mask[mask == 0] = float(-65000)
     mask -= 1
@@ -99,7 +99,7 @@ def main(args):
         torch.randn(BATCH, Q_HEAD, Q_SEQ_LEN, EMBEDDING),
         torch.randn(BATCH, KV_HEAD, KV_SEQ_LEN, EMBEDDING),
         torch.randn(BATCH, KV_HEAD, KV_SEQ_LEN, EMBEDDING),
-        mask,
+        torch.zeros(1, 1, Q_SEQ_LEN, KV_SEQ_LEN),  # mask,
     )
 
     build_executorch_binary(

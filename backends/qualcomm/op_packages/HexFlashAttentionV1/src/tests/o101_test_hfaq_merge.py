@@ -1,6 +1,6 @@
 import torch
 
-TEST_OP_ID = 2
+TEST_OP_ID = 101
 DTYPE = torch.float32
 
 

@@ -19,11 +19,12 @@ BEGIN_PKG_OPS_OPTS_LIST()
  * ops and graph optimizations are registered to the HTP Core. Append the latest
  * OpName at the bottom
  */
-DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQ)
 DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionV1)
-DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQMerge)
-DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQLocal)
 DECLARE_PKG_OPS_OPTS_LIST(PKG_TestOp)
+DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQLocal)
+DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQMerge)
+DECLARE_PKG_OPS_OPTS_LIST(PKG_TestOp2Input)
+DECLARE_PKG_OPS_OPTS_LIST(PKG_HexFlashAttentionQ)
 
 END_PKG_OPS_OPTS_LIST()
 
@@ -31,12 +32,13 @@ END_PKG_OPS_OPTS_LIST()
 static constexpr auto sg_packageName =
     THIS_PKG_NAME_STR; // package name passed in as compile flag
 
-static std::array<const char*, 5> sg_opNames{
-    {"HexFlashAttentionQ",
-     "HexFlashAttentionV1",
-     "HexFlashAttentionQMerge",
+static std::array<const char*, 6> sg_opNames{
+    {"HexFlashAttentionV1",
+     "TestOp",
      "HexFlashAttentionQLocal",
-     "TestOp"}};
+     "HexFlashAttentionQMerge",
+     "TestOp2Input",
+     "HexFlashAttentionQ"}};
 
 static Qnn_ApiVersion_t sg_sdkApiVersion = QNN_HTP_API_VERSION_INIT;
 static QnnOpPackage_Info_t sg_packageInfo = QNN_OP_PACKAGE_INFO_INIT;
@@ -232,18 +234,13 @@ Qnn_ErrorHandle_t HexFlashAttentionV1ValidateOpConfig(Qnn_OpConfig_t opConfig) {
    * Check if op config type matches any registered ops
    * If a match is found, check number of inputs, outputs and params
    */
-  if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQ") {
-    if (opConfig.v1.numOfParams != 2 || opConfig.v1.numOfInputs != 4 ||
-        opConfig.v1.numOfOutputs != 1) {
-      return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
-    }
-  } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionV1") {
+  if (std::string(opConfig.v1.typeName) == "HexFlashAttentionV1") {
     if (opConfig.v1.numOfParams != 3 || opConfig.v1.numOfInputs != 4 ||
         opConfig.v1.numOfOutputs != 1) {
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }
-  } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQMerge") {
-    if (opConfig.v1.numOfParams != 0 || opConfig.v1.numOfInputs != 2 ||
+  } else if (std::string(opConfig.v1.typeName) == "TestOp") {
+    if (opConfig.v1.numOfParams != 1 || opConfig.v1.numOfInputs != 1 ||
         opConfig.v1.numOfOutputs != 1) {
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }
@@ -252,8 +249,18 @@ Qnn_ErrorHandle_t HexFlashAttentionV1ValidateOpConfig(Qnn_OpConfig_t opConfig) {
         opConfig.v1.numOfOutputs != 1) {
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }
-  } else if (std::string(opConfig.v1.typeName) == "TestOp") {
-    if (opConfig.v1.numOfParams != 1 || opConfig.v1.numOfInputs != 1 ||
+  } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQMerge") {
+    if (opConfig.v1.numOfParams != 0 || opConfig.v1.numOfInputs != 2 ||
+        opConfig.v1.numOfOutputs != 1) {
+      return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
+    }
+  } else if (std::string(opConfig.v1.typeName) == "TestOp2Input") {
+    if (opConfig.v1.numOfParams != 1 || opConfig.v1.numOfInputs != 2 ||
+        opConfig.v1.numOfOutputs != 1) {
+      return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
+    }
+  } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQ") {
+    if (opConfig.v1.numOfParams != 2 || opConfig.v1.numOfInputs != 4 ||
         opConfig.v1.numOfOutputs != 1) {
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }

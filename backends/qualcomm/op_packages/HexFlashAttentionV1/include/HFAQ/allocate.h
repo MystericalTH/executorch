@@ -1,48 +1,20 @@
 #pragma once
 
-#include "HTP/core/log.h"
-
+#include "HTP/core/simple_reg.h"
 #include "constant.h"
 
-// Calculate HFAQLocal memory allocation
-//
-// In:
-//      - Q(1,  H,  1,      Dqk)
-//      - K(1,  H,  STile,  Dqk)
-//      - V(1,  H,  STile,  Dv )
-//
-// Out:
-//      - RowMax(1, H, 1, 1 )
-//      - L     (1, H, 1, 1 )
-//      - ACC   (1, H, 1, Dv)
-//
-// `num_query_seq_tile` is implied 1
-static inline void calc_hfaq_local_scratch_malloc(
-    size_t num_head_tile,
-    size_t num_seq_tile,
-    size_t qk_emb_len,
-    size_t v_emb_len) {
-  // input sizes
-  const size_t query_t_size = num_head_tile * qk_emb_len;
-  const size_t key_t_size = num_head_tile * num_seq_tile * qk_emb_len;
-  const size_t value_t_size = num_head_tile * num_seq_tile * v_emb_len;
+// Scratch blocks usage:
+// (b1) k.T: `(D, SEQ_TILE)`
+// (b2) att_hf: `2 * (HEAD_TILE, SEQ_PROC_TILE)`
+// (b3) att_sf: `= b2`
+// *b3 sf multi-block transpose uses extra space, maybe inplace is possible?
+// b1, b3 is not used at the same time, scratch blocks: `2 x max(b1,b2)`
+static inline std::array<size_t, 2> hfaq_local_scratch_blocks(size_t qk_emb) {
+  const size_t k_t_block = qk_emb * HFAQ_KV_SEQ_PROC_TILE;
+  // sf usecase: *=2
+  const size_t att_block = 2 * HFAQ_ACC_HEAD_TILE * HFAQ_KV_SEQ_PROC_TILE;
 
-  errlog(
-      "[HFAQ_MALLOC]"
-      " Q: %d K: %d V: %d",
-      query_t_size * HF_BYTES,
-      key_t_size * HF_BYTES,
-      value_t_size * HF_BYTES);
+  const size_t max_block = att_block > k_t_block ? att_block : k_t_block;
+
+  return {max_block, max_block};
 }
-
-// Calculate HFAQMerge memory allocation
-//
-// In(2) / Out (1):
-//      - RowMax(1, H, 1, 1 )
-//      - L     (1, H, 1, 1 )
-//      - ACC   (1, H, 1, Dv)
-static inline void calc_hfaq_merge_scratch_malloc(
-    size_t num_head_tile,
-    size_t num_seq_tile,
-    size_t qk_emb_len,
-    size_t v_emb_len) {}
