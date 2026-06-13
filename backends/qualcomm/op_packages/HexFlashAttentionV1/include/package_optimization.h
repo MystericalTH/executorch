@@ -25,7 +25,31 @@
   DEF_PACKAGE_OPTIMIZATION_WITH_FLAGS(           \
       GRAPH_CLEANUP, relaxed_precision_flag, TARGET, COND, REPL)
 
-API_EXPORT QuickShape broadcast_split_start(
+// HexFlashAttentionQ
+
+#define HFAQ_SHOULD_TILE_KV                   \
+  AND(GT(DIM_WIDTH("key"), HFAQ_KV_SEQ_TILE), \
+      GT(DIM_WIDTH("value"), HFAQ_KV_SEQ_TILE))
+
+#define HFAQ_LOCAL_OUTPUT_SHAPE   \
+  gen_Shape(                      \
+      DIM_BATCHES("query"),       \
+      ADD(DIM_DEPTH("value"), 2), \
+      1,                          \
+      DIM_HEIGHT("query"))
+
+// HFAQLocal(KV_slice) -> Out -> (1, Dv + 2, 1, H) -> FP32
+#define HFAQ_LOCAL_RECURSIVE_OP(IDX)                             \
+  WITH_SIZE(                                                     \
+      HFAQ_LOCAL_OUTPUT_SHAPE,                                   \
+      Op("HexFlashAttentionQLocal",                              \
+         "query",                                                \
+         RECURSIVE_SLICE("key", 2, IDX, HFAQ_KV_SEQ_TILE),       \
+         RECURSIVE_SLICE("value", 2, IDX, HFAQ_KV_SEQ_TILE),     \
+         RECURSIVE_SLICE("attn_mask", 3, IDX, HFAQ_KV_SEQ_TILE), \
+         "scale"))
+
+API_EXPORT static inline QuickShape broadcast_split_start(
     Replacement& rpx,
     Split_Context const& splitinfo,
     int dim,
@@ -39,7 +63,7 @@ API_EXPORT QuickShape broadcast_split_start(
   return QuickShape(dims[0], dims[1], dims[2], dims[3]);
 }
 
-API_EXPORT QuickShape broadcast_split_size(
+API_EXPORT static inline QuickShape broadcast_split_size(
     Replacement& rpx,
     Split_Context const& splitinfo,
     OpRef const& orig,
@@ -63,7 +87,7 @@ API_EXPORT QuickShape broadcast_split_size(
           broadcast_split_start, CTX, SLICE_DIM, N_ALL, N_BROADCAST), \
       AUTOSPLIT_SHAPEFN_APPLY(broadcast_split_size, CTX, ARG))
 
-API_EXPORT QuickShape recursive_2_split_start(
+API_EXPORT static inline QuickShape recursive_2_split_start(
     Replacement& rpx,
     OpRef const& input,
     int idx,
@@ -76,11 +100,10 @@ API_EXPORT QuickShape recursive_2_split_start(
     split_size = split_size << 1;
   }
   dims[dim] = idx == 0 ? 0 : split_size;
-  errlog("split start: %d %d %d %d", dims[0], dims[1], dims[2], dims[3]);
   return QuickShape(dims[0], dims[1], dims[2], dims[3]);
 }
 
-API_EXPORT QuickShape recursive_2_split_size(
+API_EXPORT static inline QuickShape recursive_2_split_size(
     Replacement& rpx,
     OpRef const& input,
     int idx,
@@ -99,7 +122,6 @@ API_EXPORT QuickShape recursive_2_split_size(
     split_size = split_size << 1;
   }
   dims[dim] = idx == 0 ? split_size : (dim_size - split_size);
-  errlog("split size: %d %d %d %d", dims[0], dims[1], dims[2], dims[3]);
   return QuickShape(dims[0], dims[1], dims[2], dims[3]);
 }
 

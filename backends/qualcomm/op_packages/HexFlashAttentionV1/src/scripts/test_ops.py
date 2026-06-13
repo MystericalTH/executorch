@@ -62,6 +62,7 @@ def get_test_op_package_config(android_workspace: str = None):
             "TestOp2Input": torch.ops.hex_flash_test.test_op_2_input.default,
             "HexFlashAttentionQMerge": torch.ops.hex_flash_test.hfaq_merge.default,
             "HexFlashAttentionQLocal": torch.ops.hex_flash_test.hfaq_local.default,
+            "HexFlashAttentionQ": torch.ops.hex_flash_test.hfaq.default,
         },
     )
 

@@ -43,6 +43,7 @@ class CustomOp(NodeVisitor):
         custom_input_tensors = []
         custom_attr_keys = [arg.name for arg in node.target._schema.arguments]
         if len(custom_attr_keys) != len(node.args):
+            print(node.args)
             warnings.warn(
                 f"Number of inputs ({len(node.args)}) mismatch the number of args ({len(custom_attr_keys)}) in schema for the custom node ({self.target}).",
                 stacklevel=1,

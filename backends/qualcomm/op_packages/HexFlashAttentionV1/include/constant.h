@@ -13,6 +13,8 @@
 // Math
 #define SF_NEG_INF 0xFF800000 // -inf
 
+#define SF_TWO 0x40000000 // 2.0
+
 #define SF_ONE 0x3F800000 // 1.0
 #define HF_ONE 0x3C00 // 1.0
 
@@ -34,3 +36,7 @@
 #define EXP2_HF_e2 0x2B1B // 0.0555033
 #define EXP2_HF_e1 0x33B0 // 0.240226
 #define EXP2_HF_e0 0x398C // 0.693147
+
+#define INV_MAGIC_c0 0x7EB504F3
+#define INV_e0 0x3FF86FB4 // 1.94090888923
+#define INV_e1 0x3FB7C3B6 // 1.43566017178

@@ -61,27 +61,13 @@ RELAXED_PRECISION_OP(
        CAST_FP16("attn_mask"),
        "scale"))
 
-// HFAQLocal(KV_slice) -> Out -> (1, Dv + 2, 1, H) -> FP32
-#define OP_RECURSIVE_LOCAL(IDX)                                  \
-  WITH_SIZE(                                                     \
-      gen_Shape(                                                 \
-          DIM_BATCHES("query"),                                  \
-          ADD(DIM_DEPTH("value"), 2),                            \
-          1,                                                     \
-          DIM_HEIGHT("query")),                                  \
-      Op("HexFlashAttentionQLocal",                              \
-         "query",                                                \
-         RECURSIVE_SLICE("key", 2, IDX, HFAQ_KV_SEQ_TILE),       \
-         RECURSIVE_SLICE("value", 2, IDX, HFAQ_KV_SEQ_TILE),     \
-         RECURSIVE_SLICE("attn_mask", 3, IDX, HFAQ_KV_SEQ_TILE), \
-         "scale"))
-
 DEF_PACKAGE_OPTIMIZATION(
     EARLY,
     ORIGINAL_OP,
-    AND(GT(DIM_WIDTH("key"), HFAQ_KV_SEQ_TILE),
-        GT(DIM_WIDTH("value"), HFAQ_KV_SEQ_TILE)),
-    Op("HexFlashAttentionQMerge", OP_RECURSIVE_LOCAL(0), OP_RECURSIVE_LOCAL(1)))
+    HFAQ_SHOULD_TILE_KV,
+    Op("HexFlashAttentionQMerge",
+       HFAQ_LOCAL_RECURSIVE_OP(0),
+       HFAQ_LOCAL_RECURSIVE_OP(1)))
 
 DEF_PACKAGE_PARAM_ORDER("HexFlashAttentionQLocal", "scale", true, nullptr)
 

@@ -2,6 +2,7 @@ import torch
 
 from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests import (
     o0_test_exp2_hf,
+    o1000_test_hfaq,
     o100_test_hfaq_local,
     o101_test_hfaq_merge,
     o1_test_exp2,
@@ -10,6 +11,7 @@ from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests impo
     o4_test_mat_transpose64x64_hf,
     o50_test_matmul1x64N_hf,
     o5_test_mat_transpose64Mx64N_hf,
+    o6_test_inv,
 )
 from torch.library import impl, Library
 
@@ -20,9 +22,11 @@ test_modules = [
     o3_test_mat_transpose32Mx32N,
     o4_test_mat_transpose64x64_hf,
     o5_test_mat_transpose64Mx64N_hf,
+    o6_test_inv,
     o50_test_matmul1x64N_hf,
     o100_test_hfaq_local,
     o101_test_hfaq_merge,
+    o1000_test_hfaq,
 ]
 
 
@@ -221,5 +225,68 @@ def hfaq_local_out_impl(
     out: torch.Tensor = None,
 ) -> torch.Tensor:
     result = hfaq_local_impl(query, key, value, attn_mask, scale)
+    out.copy_(result)
+    return out
+
+
+test_lib.define(
+    """
+    hfaq(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor attn_mask,
+        float? scale=None,
+        int? enable_gqa=0
+    ) -> Tensor
+"""
+)
+
+test_lib.define(
+    """
+    hfaq.out(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor attn_mask,
+        float? scale=None,
+        int? enable_gqa=0,
+        *,
+        Tensor(a!) output
+    ) -> Tensor(a!)
+"""
+)
+
+
+@impl(test_lib, "hfaq", dispatch_key="CompositeExplicitAutograd")
+def hfaq_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor,
+    scale: float = None,
+    enable_gqa: int = 0,
+) -> torch.Tensor:
+    return torch.nn.functional.scaled_dot_product_attention(
+        query, key, value, attn_mask, scale=scale, enable_gqa=bool(enable_gqa)
+    )
+
+
+@impl(
+    test_lib,
+    "hfaq.out",
+    dispatch_key="CompositeExplicitAutograd",
+)
+def hfaq_out_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor,
+    scale: float = None,
+    enable_gqa: int = 0,
+    *,
+    out: torch.Tensor = None,
+) -> torch.Tensor:
+    result = hfaq_impl(query, key, value, attn_mask, scale, enable_gqa)
     out.copy_(result)
     return out

@@ -318,6 +318,37 @@
             <SupportedBackend>HTP</SupportedBackend>
         </OpDef>
         <OpDef>
+            <Name>HexFlashAttentionQFinalize</Name>
+            <Description>
+                <Content>Finalize HexFlashAttentionQ output</Content>
+            </Description>
+            <Input>
+                <Name>input</Name>
+                <Description>
+                    <Content>Input tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Input>
+            <Output>
+                <Name>output</Name>
+                <Description>
+                    <Content>Output tensor</Content>
+                </Description>
+                <Mandatory>true</Mandatory>
+                <Datatype>QNN_DATATYPE_FLOAT_32</Datatype>
+                <Shape>
+                    <Rank>4D</Rank>
+                    <Layout>NHWC</Layout>
+                </Shape>
+            </Output>
+            <SupportedBackend>HTP</SupportedBackend>
+        </OpDef>
+        <OpDef>
             <Name>TestOp</Name>
             <Description>
                 <Content>For testing ops</Content>

@@ -10,6 +10,7 @@
 #include "QnnOpPackage.h"
 
 #include "hvx/hvx_exp_ops.h"
+#include "hvx/hvx_inv_ops.h"
 #include "hvx/hvx_transpose_ops.h"
 
 BEGIN_PKG_OP_DEFINITION(PKG_TestOp);
@@ -70,6 +71,9 @@ testopImpl(Tensor& out_0, const Tensor& in_0, const Int32Tensor& op_id) {
       hvx_mat_transposeMxN_Vhf(
           (Float16*)out_ptr, (Float16*)in_0_ptr, in_0.dim(2), in_0.dim(3));
       set_out = false;
+      break;
+    case 6:
+      result_vec = hvx_Vsf_vinv_Vsf(in_0_vec);
       break;
     default:
       return GraphStatus::ErrorBadInput;
