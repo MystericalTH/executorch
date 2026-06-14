@@ -3,6 +3,7 @@ import torch
 from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests import (
     o0_test_exp2_hf,
     o1000_test_hfaq,
+    o1001_test_hfa,
     o100_test_hfaq_local,
     o101_test_hfaq_merge,
     o1_test_exp2,
@@ -27,6 +28,7 @@ test_modules = [
     o100_test_hfaq_local,
     o101_test_hfaq_merge,
     o1000_test_hfaq,
+    o1001_test_hfa,
 ]
 
 
@@ -288,5 +290,74 @@ def hfaq_out_impl(
     out: torch.Tensor = None,
 ) -> torch.Tensor:
     result = hfaq_impl(query, key, value, attn_mask, scale, enable_gqa)
+    out.copy_(result)
+    return out
+
+
+test_lib.define(
+    """
+    hfa(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor attn_mask,
+        bool? is_causal=False,
+        bool? enable_gqa=False,
+        float? scale=None
+    ) -> Tensor
+"""
+)
+
+test_lib.define(
+    """
+    hfa.out(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor attn_mask,
+        bool? is_causal=False,
+        bool? enable_gqa=False,
+        float? scale=None,
+        *,
+        Tensor(a!) output
+    ) -> Tensor(a!)
+"""
+)
+
+
+@impl(test_lib, "hfa", dispatch_key="CompositeExplicitAutograd")
+def hfa_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor,
+    is_causal: bool = False,
+    enable_gqa: bool = False,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask,
+        is_causal=is_causal,
+        enable_gqa=enable_gqa,
+        scale=scale,
+    )
+
+
+@impl(test_lib, "hfa.out", dispatch_key="CompositeExplicitAutograd")
+def hfa_out_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor,
+    is_causal: bool = False,
+    enable_gqa: bool = False,
+    scale: float = None,
+    *,
+    out: torch.Tensor = None,
+) -> torch.Tensor:
+    result = hfa_impl(query, key, value, attn_mask, is_causal, enable_gqa, scale)
     out.copy_(result)
     return out

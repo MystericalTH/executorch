@@ -35,9 +35,6 @@
   gen_Shape(                    \
       DIM_BATCHES("query"), ADD(DIM_DEPTH("value"), 2), 1, HFAQ_ACC_HEAD_TILE)
 
-#define HFAQ_FINAL_OUTPUT_SHAPE \
-  gen_Shape(DIM_BATCHES("query"), DIM_HEIGHT("query"), 1, DIM_DEPTH("value"))
-
 // HFAQLocal(KV_slice) -> Out -> (1, Dv + 2, 1, H) -> FP32
 #define HFAQ_LOCAL_RECURSIVE_OP(IDX)                             \
   WITH_SIZE(                                                     \

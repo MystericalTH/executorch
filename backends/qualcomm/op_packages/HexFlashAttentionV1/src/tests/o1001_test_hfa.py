@@ -2,7 +2,7 @@ import math
 
 import torch
 
-TEST_OP_ID = 1000
+TEST_OP_ID = 1001
 DTYPE = torch.float32
 
 
@@ -15,18 +15,19 @@ class TestModel(torch.nn.Module):
         attn_mask: torch.Tensor,
     ):
         scale = float(1 / math.sqrt(query.size(3)))
-        return torch.ops.hex_flash_test.hfaq.default(
+        return torch.ops.hex_flash_test.hfa.default(
             query,
             key,
             value,
             attn_mask,
+            is_causal=False,
+            enable_gqa=False,
             scale=scale,
-            enable_gqa=1,
         )
 
 
 def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
-    HEADS = 16
+    HEADS = 32
     KV_SEQ_LEN = 64 * 32
     EMB_LEN = 128
     return [
@@ -36,5 +37,5 @@ def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
             torch.randn(1, HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
             torch.randn(1, 1, 1, KV_SEQ_LEN, dtype=DTYPE),
         )
-        for _ in range(5)
+        for _ in range(1)
     ]

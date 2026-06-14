@@ -63,6 +63,7 @@ def get_test_op_package_config(android_workspace: str = None):
             "HexFlashAttentionQMerge": torch.ops.hex_flash_test.hfaq_merge.default,
             "HexFlashAttentionQLocal": torch.ops.hex_flash_test.hfaq_local.default,
             "HexFlashAttentionQ": torch.ops.hex_flash_test.hfaq.default,
+            "HexFlashAttentionV1": torch.ops.hex_flash_test.hfa.default,
         },
     )
 

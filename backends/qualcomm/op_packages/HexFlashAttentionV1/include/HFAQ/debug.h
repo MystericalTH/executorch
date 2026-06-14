@@ -57,16 +57,21 @@ static inline void log_hfaq_local_memfp(
   if (!ENABLE_LOG) {
     return;
   }
+  auto [oB, oH, oW, oD] = out_0.dims();
   errlog(
       "[HFAQLocal]\n"
       "[Input] query: %zu bytes, key: %zu bytes, value: %zu bytes, attn_mask: %zu bytes, scale: %zu bytes\n"
-      "[Output] out: %zu bytes\n"
+      "[Output] out (%d %d %d %d): %zu bytes\n"
       "[Temp] scratch: %zu bytes",
       calc_tensor_elems(query) * HF_BYTES,
       calc_tensor_elems(key) * HF_BYTES,
       calc_tensor_elems(value) * HF_BYTES,
       calc_tensor_elems(attn_mask) * HF_BYTES,
       calc_tensor_elems(scale) * SF_BYTES,
+      oB,
+      oH,
+      oW,
+      oD,
       calc_tensor_elems(out_0) * SF_BYTES,
       calc_tensor_elems(scratch) * HF_BYTES);
 }

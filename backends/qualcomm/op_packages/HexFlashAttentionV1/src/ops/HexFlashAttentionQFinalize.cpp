@@ -10,6 +10,7 @@
 #include "HTP/core/simple_reg.h"
 #include "QnnOpPackage.h"
 
+#include "HFAQ/debug.h"
 #include "constant.h"
 #include "hvx/hvx_inv_ops.h"
 #include "hvx/hvx_transpose_ops.h"
@@ -36,6 +37,7 @@ GraphStatus hexflashattentionqfinalizeImpl(
     PlainFloatTensor_TCM& out_0,
     const PlainFloatTensor_TCM& in_0,
     PlainFloatTensor_TCM& scratch) {
+  const auto num_heads = out_0.dim(1);
   const auto v_emb = in_0.dim(1) - 2;
   const auto acc_size = v_emb * HFAQ_ACC_HEAD_TILE;
 
@@ -45,7 +47,11 @@ GraphStatus hexflashattentionqfinalizeImpl(
   auto tmp_ptr = scratch.data_ptr();
   auto tmp_vec = (HVX_Vector*)tmp_ptr;
 
+  auto tmp2_ptr = tmp_ptr + HFAQ_ACC_HEAD_TILE * v_emb;
+  auto tmp2_vec = (HVX_Vector*)tmp2_ptr;
+
   auto out_ptr = out_0.data_ptr();
+  auto out_vec = (HVX_Vector*)out_ptr;
 
   auto l_vec_ptr = (HVX_Vector*)(acc_ptr + acc_size) + 1;
 
@@ -55,7 +61,11 @@ GraphStatus hexflashattentionqfinalizeImpl(
     tmp_vec[i] = Q6_Vsf_vmpy_VsfVsf(l_inv, acc_vec[i]);
   }
 
-  hvx_mat_transposeMxN_Vsf(out_ptr, tmp_ptr, v_emb, HFAQ_ACC_HEAD_TILE);
+  hvx_mat_transposeMxN_Vsf(tmp2_ptr, tmp_ptr, v_emb, HFAQ_ACC_HEAD_TILE);
+
+  for (uint16_t i = 0; i < num_heads * v_emb / 32; ++i) {
+    out_vec[i] = tmp2_vec[i];
+  }
 
   return GraphStatus::Success;
 }
@@ -69,7 +79,8 @@ class FlashAttentionQFinalizeImplConstructorHook : public hnnx::OpHookBase {
       const override {
     const size_t v_emb = op.get_input(0)->dim(1) - 2;
     const size_t block_0 = HFAQ_ACC_HEAD_TILE * v_emb;
-    size_t new_dims[4] = {1, 1, 1, block_0};
+    const size_t block_1 = HFAQ_ACC_HEAD_TILE * v_emb;
+    size_t new_dims[4] = {1, 1, 1, block_0 + block_1};
     GraphStatus result =
         hnnx::change_output_tensor_shape(op, 1, iop.graph(), 4, new_dims);
     if (result != GraphStatus::Success) {
