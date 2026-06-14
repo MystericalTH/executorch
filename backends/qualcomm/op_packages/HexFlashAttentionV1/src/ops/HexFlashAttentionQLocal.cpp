@@ -85,7 +85,7 @@ GraphStatus hexflashattentionqlocalImpl(
   const auto qk_emb = query.dim(3);
   const auto v_emb = value.dim(3);
   const auto q_head_stride = 1 * qk_emb;
-  const auto k_head_stride = qk_emb * HFAQ_KV_SEQ_PROC_TILE;
+  const auto k_head_stride = qk_emb * HFAQ_KV_SEQ_TILE;
   auto q_ptr = query.data_ptr();
   auto k_ptr = key.data_ptr();
   auto v_ptr = value.data_ptr();
@@ -99,11 +99,6 @@ GraphStatus hexflashattentionqlocalImpl(
   auto scr_block_0_ptr = scratch.data_ptr();
   auto scr_block_1_ptr = scr_block_0_ptr + scr_block_0;
 
-  // case HFAQ_KV_SEQ_PROC_TILE = HFAQ_KV_SEQ_TILE = 64
-  static_assert(
-      HFAQ_KV_SEQ_PROC_TILE == HFAQ_KV_SEQ_TILE,
-      "this implementation requires proc tile == graph tile");
-
   const auto rscale = *(uint32_t*)scale.data_ptr();
   auto attn_mask_vec = *(HVX_Vector*)attn_mask.data_ptr();
 
@@ -112,15 +107,15 @@ GraphStatus hexflashattentionqlocalImpl(
   auto att_row_ptr = scr_block_1_ptr;
 
   for (uint16_t h = 0; h < HFAQ_ACC_HEAD_TILE; ++h) {
-    hvx_mat_transposeMxN_Vhf(k_t_ptr, k_ptr, HFAQ_KV_SEQ_PROC_TILE, qk_emb);
+    hvx_mat_transposeMxN_Vhf(k_t_ptr, k_ptr, HFAQ_KV_SEQ_TILE, qk_emb);
     hvx_Vhf_matmul1x64N_Vhf(
-        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_PROC_TILE, rscale);
+        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_TILE, rscale);
     *(HVX_Vector*)att_row_ptr =
         Q6_Vhf_vadd_VhfVhf(*(HVX_Vector*)att_row_ptr, attn_mask_vec);
 
     q_ptr += q_head_stride; // move to next q head
     k_ptr += k_head_stride; // move to next k head
-    att_row_ptr += HFAQ_KV_SEQ_PROC_TILE; // move to next head row
+    att_row_ptr += HFAQ_KV_SEQ_TILE; // move to next head row
   }
 
   auto att_t_ptr = scr_block_1_ptr;
@@ -138,7 +133,7 @@ GraphStatus hexflashattentionqlocalImpl(
 
   // transpose back sf(64, 32) -> sf(32, 64)
   hvx_mat_transposeMxN_Vsf(
-      att_ptr, (float*)att_t_ptr, HFAQ_KV_SEQ_PROC_TILE, HFAQ_ACC_HEAD_TILE);
+      att_ptr, (float*)att_t_ptr, HFAQ_KV_SEQ_TILE, HFAQ_ACC_HEAD_TILE);
 
   auto att_x_v_ptr = (float*)scr_block_1_ptr;
 

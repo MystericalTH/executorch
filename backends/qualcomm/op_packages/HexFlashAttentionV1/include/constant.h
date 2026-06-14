@@ -7,8 +7,7 @@
 #define SF_BYTES 4
 
 #define HFAQ_ACC_HEAD_TILE 32
-#define HFAQ_KV_SEQ_TILE 64 // graph tiling
-#define HFAQ_KV_SEQ_PROC_TILE 64 // in-kernel tiling
+#define HFAQ_KV_SEQ_TILE 64 // kv seq tiling
 
 // Math
 #define SF_NEG_INF 0xFF800000 // -inf

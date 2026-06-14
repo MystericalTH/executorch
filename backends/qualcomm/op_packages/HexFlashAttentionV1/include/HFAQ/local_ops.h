@@ -11,7 +11,7 @@ static inline HVX_Vector upcast_scale_max_att_t(HVX_Vector* att_vec) {
   HVX_Vector att_vec_sf;
   HVX_Vector local_max_vec = Q6_V_vsplat_R(SF_NEG_INF);
   HVX_Vector inv_ln2_vec = Q6_V_vsplat_R(SF_INV_LN2);
-  for (uint16_t i = 0; i < HFAQ_KV_SEQ_PROC_TILE; ++i) {
+  for (uint16_t i = 0; i < HFAQ_KV_SEQ_TILE; ++i) {
     att_vec_sf = Q6_V_lo_W(Q6_Wsf_vcvt_Vhf(Q6_Vh_vshuff_Vh(att_vec[i])));
     att_vec_sf = Q6_Vsf_vmpy_VsfVsf(att_vec_sf, inv_ln2_vec);
     local_max_vec = Q6_Vsf_vmax_VsfVsf(local_max_vec, att_vec_sf);
@@ -28,7 +28,7 @@ static inline HVX_Vector norm_exp_l_att_t(
     HVX_Vector local_max_vec) {
   HVX_Vector att_vec_sf;
   HVX_Vector local_l_vec = Q6_V_vzero();
-  for (uint16_t i = 0; i < HFAQ_KV_SEQ_PROC_TILE; ++i) {
+  for (uint16_t i = 0; i < HFAQ_KV_SEQ_TILE; ++i) {
     att_vec_sf =
         hvx_Vsf_vexp2_Vsf(Q6_Vsf_vsub_VsfVsf(att_vec[i], local_max_vec));
     local_l_vec = Q6_Vsf_vadd_VsfVsf(local_l_vec, att_vec_sf);
@@ -44,10 +44,10 @@ static inline void att_heads_matmul_v(
     const size_t v_emb) {
   for (uint16_t h = 0; h < HFAQ_ACC_HEAD_TILE; ++h) {
     hvx_Vsf_matmul1x64N_VsfVhf(
-        out_row_ptr, att_ptr, v_ptr, HFAQ_KV_SEQ_PROC_TILE, v_emb);
+        out_row_ptr, att_ptr, v_ptr, HFAQ_KV_SEQ_TILE, v_emb);
 
-    att_ptr += HFAQ_KV_SEQ_PROC_TILE;
-    v_ptr += v_emb * HFAQ_KV_SEQ_PROC_TILE;
+    att_ptr += HFAQ_KV_SEQ_TILE;
+    v_ptr += v_emb * HFAQ_KV_SEQ_TILE;
     out_row_ptr += v_emb;
   }
 }
