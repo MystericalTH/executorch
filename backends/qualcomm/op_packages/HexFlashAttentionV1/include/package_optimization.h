@@ -7,8 +7,6 @@
 #include "HTP/core/simple_reg.h"
 #include "QnnOpPackage.h"
 
-#ifndef PREPARE_DISABLED
-
 #define CAST_FP16(IN)   \
   WITH_SIZE(            \
       IN,               \
@@ -48,6 +46,8 @@
          RECURSIVE_SLICE("value", 2, IDX, HFAQ_KV_SEQ_TILE),     \
          RECURSIVE_SLICE("attn_mask", 3, IDX, HFAQ_KV_SEQ_TILE), \
          "scale"))
+
+#ifndef PREPARE_DISABLED
 
 API_EXPORT static inline QuickShape broadcast_split_start(
     Replacement& rpx,

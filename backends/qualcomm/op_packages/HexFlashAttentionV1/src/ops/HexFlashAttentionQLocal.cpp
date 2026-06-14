@@ -129,12 +129,10 @@ GraphStatus hexflashattentionqlocalImpl(
   hvx_mat_transpose64x64_Vhf(att_t_ptr, att_t_ptr);
 
   auto att_vec_ptr = (HVX_Vector*)att_t_ptr;
-  auto local_max_vec = Q6_V_vsplat_R(SF_NEG_INF);
-  auto local_l_vec = Q6_V_vzero();
 
-  upcast_scale_max_att_t(att_vec_ptr, &local_max_vec);
+  auto local_max_vec = upcast_scale_max_att_t(att_vec_ptr);
 
-  norm_exp_l_att_t(att_vec_ptr, local_max_vec, &local_l_vec);
+  auto local_l_vec = norm_exp_l_att_t(att_vec_ptr, local_max_vec);
 
   auto att_ptr = (float*)scr_block_0_ptr;
 

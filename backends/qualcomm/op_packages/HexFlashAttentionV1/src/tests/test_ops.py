@@ -94,8 +94,8 @@ def get_test_op_package_config(android_workspace: str = None):
 def build_op_package(lib_name: str, args):
     make_list = ["make", "htp_x86"]
 
-    if not args.enable_x86_64:
-        make_list.append(["htp_aarch64", f"htp_v{args.arch}"])
+    # if not args.enable_x86_64:
+    make_list += ["htp_aarch64", f"htp_v{args.arch}"]
 
     _run(["rm", "-rf", "build"], cwd=args.op_package_dir)
     _run(make_list, cwd=args.op_package_dir)
