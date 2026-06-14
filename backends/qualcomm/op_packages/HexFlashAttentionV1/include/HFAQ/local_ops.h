@@ -3,6 +3,33 @@
 #include "constant.h"
 #include "hvx/hvx_exp_ops.h"
 #include "hvx/hvx_matmul_ops.h"
+#include "hvx/hvx_transpose_ops.h"
+
+// for each head do:
+// - scale * Q x K.T
+// - += attn_mask
+static inline void q_heads_scale_matmul_kt_mask(
+    Float16* att_row_ptr,
+    Float16* q_ptr,
+    Float16* k_ptr,
+    const HVX_Vector attn_mask_vec,
+    const uint32_t rscale,
+    const size_t num_heads,
+    const size_t qk_emb,
+    Float16* scr_block_ptr) {
+  auto k_t_ptr = scr_block_ptr;
+  for (uint16_t h = 0; h < num_heads; ++h) {
+    hvx_mat_transposeMxN_Vhf(k_t_ptr, k_ptr, HFAQ_KV_SEQ_TILE, qk_emb);
+    hvx_Vhf_matmul1x64N_Vhf(
+        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_TILE, rscale);
+    *(HVX_Vector*)att_row_ptr =
+        Q6_Vhf_vadd_VhfVhf(*(HVX_Vector*)att_row_ptr, attn_mask_vec);
+
+    q_ptr += qk_emb; // move to next q head
+    k_ptr += qk_emb * HFAQ_KV_SEQ_TILE; // move to next k head
+    att_row_ptr += HFAQ_KV_SEQ_TILE; // move to next head row
+  }
+}
 
 // - upcast hf -> sf
 // - scale att by 1 / ln(2)
@@ -41,8 +68,9 @@ static inline void att_heads_matmul_v(
     float* out_row_ptr,
     float* att_ptr,
     Float16* v_ptr,
+    const size_t num_heads,
     const size_t v_emb) {
-  for (uint16_t h = 0; h < HFAQ_ACC_HEAD_TILE; ++h) {
+  for (uint16_t h = 0; h < num_heads; ++h) {
     hvx_Vsf_matmul1x64N_VsfVhf(
         out_row_ptr, att_ptr, v_ptr, HFAQ_KV_SEQ_TILE, v_emb);
 

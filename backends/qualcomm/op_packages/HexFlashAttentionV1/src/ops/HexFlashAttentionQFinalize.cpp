@@ -67,9 +67,8 @@ class FlashAttentionQFinalizeImplConstructorHook : public hnnx::OpHookBase {
   // allocation.
   virtual GraphStatus pre_allocate(hnnx::OpIoPtrs const& iop, Op& op)
       const override {
-    const size_t heads = op.get_input(0)->dim(3);
     const size_t v_emb = op.get_input(0)->dim(1) - 2;
-    const size_t block_0 = heads * v_emb;
+    const size_t block_0 = HFAQ_ACC_HEAD_TILE * v_emb;
     size_t new_dims[4] = {1, 1, 1, block_0};
     GraphStatus result =
         hnnx::change_output_tensor_shape(op, 1, iop.graph(), 4, new_dims);

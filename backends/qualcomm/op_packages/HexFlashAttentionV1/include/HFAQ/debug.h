@@ -9,9 +9,6 @@ constexpr bool ENABLE_LOG = false;
 
 template <typename DataType>
 static inline void log_hvx_vector(DataType* ptr) {
-  if (!ENABLE_LOG) {
-    return;
-  }
   errlog("START");
   for (size_t i = 0; i < 128 / sizeof(DataType); i += 8) {
     errlog(

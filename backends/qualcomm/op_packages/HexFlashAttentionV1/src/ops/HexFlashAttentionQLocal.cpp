@@ -15,7 +15,6 @@
 #include "HFAQ/local_ops.h"
 
 #include "constant.h"
-#include "hvx/hvx_matmul_ops.h"
 #include "hvx/hvx_transpose_ops.h"
 #include "package_optimization.h"
 
@@ -82,10 +81,9 @@ GraphStatus hexflashattentionqlocalImpl(
     PlainFloat16Tensor_TCM& scratch) {
   log_hfaq_local_memfp(out_0, query, key, value, attn_mask, scale, scratch);
 
+  const auto num_heads = query.dim(1);
   const auto qk_emb = query.dim(3);
   const auto v_emb = value.dim(3);
-  const auto q_head_stride = 1 * qk_emb;
-  const auto k_head_stride = qk_emb * HFAQ_KV_SEQ_TILE;
   auto q_ptr = query.data_ptr();
   auto k_ptr = key.data_ptr();
   auto v_ptr = value.data_ptr();
@@ -100,25 +98,21 @@ GraphStatus hexflashattentionqlocalImpl(
   auto scr_block_1_ptr = scr_block_0_ptr + scr_block_0;
 
   const auto rscale = *(uint32_t*)scale.data_ptr();
-  auto attn_mask_vec = *(HVX_Vector*)attn_mask.data_ptr();
+  const auto attn_mask_vec = *(HVX_Vector*)attn_mask.data_ptr();
 
-  // for each head do: scale*matmul(Q, K.T) + attn_mask
-  auto k_t_ptr = scr_block_0_ptr;
   auto att_row_ptr = scr_block_1_ptr;
 
-  for (uint16_t h = 0; h < HFAQ_ACC_HEAD_TILE; ++h) {
-    hvx_mat_transposeMxN_Vhf(k_t_ptr, k_ptr, HFAQ_KV_SEQ_TILE, qk_emb);
-    hvx_Vhf_matmul1x64N_Vhf(
-        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_TILE, rscale);
-    *(HVX_Vector*)att_row_ptr =
-        Q6_Vhf_vadd_VhfVhf(*(HVX_Vector*)att_row_ptr, attn_mask_vec);
+  q_heads_scale_matmul_kt_mask(
+      att_row_ptr,
+      q_ptr,
+      k_ptr,
+      attn_mask_vec,
+      rscale,
+      num_heads,
+      qk_emb,
+      scr_block_0_ptr);
 
-    q_ptr += q_head_stride; // move to next q head
-    k_ptr += k_head_stride; // move to next k head
-    att_row_ptr += HFAQ_KV_SEQ_TILE; // move to next head row
-  }
-
-  auto att_t_ptr = scr_block_1_ptr;
+  auto att_t_ptr = att_row_ptr;
 
   // transpose (32, 64) -> (64, 32)
   hvx_mat_transpose64x64_Vhf(att_t_ptr, att_t_ptr);
@@ -138,7 +132,7 @@ GraphStatus hexflashattentionqlocalImpl(
   auto att_x_v_ptr = (float*)scr_block_1_ptr;
 
   // for each head do: matmul(ATT, V)
-  att_heads_matmul_v(att_x_v_ptr, att_ptr, v_ptr, v_emb);
+  att_heads_matmul_v(att_x_v_ptr, att_ptr, v_ptr, num_heads, v_emb);
 
   // transpose for merging
   hvx_mat_transposeMxN_Vsf(out_ptr, att_x_v_ptr, HFAQ_ACC_HEAD_TILE, v_emb);

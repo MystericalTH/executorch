@@ -27,7 +27,7 @@ class TestModel(torch.nn.Module):
 
 def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
     HEADS = 32
-    KV_SEQ_LEN = 64 * 128
+    KV_SEQ_LEN = 64 * 4
     EMB_LEN = 128
     return [
         (

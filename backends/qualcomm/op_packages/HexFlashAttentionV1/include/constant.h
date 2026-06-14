@@ -6,6 +6,7 @@
 #define HF_BYTES 2
 #define SF_BYTES 4
 
+#define HFAQ_INIT_HEAD_TILE 16 // initial head tiling
 #define HFAQ_ACC_HEAD_TILE 32
 #define HFAQ_KV_SEQ_TILE 64 // kv seq tiling
 

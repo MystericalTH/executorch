@@ -7,6 +7,8 @@
 #include "HTP/core/simple_reg.h"
 #include "QnnOpPackage.h"
 
+#include "constant.h"
+
 #define CAST_FP16(IN)   \
   WITH_SIZE(            \
       IN,               \
@@ -29,12 +31,12 @@
   AND(GT(DIM_WIDTH("key"), HFAQ_KV_SEQ_TILE), \
       GT(DIM_WIDTH("value"), HFAQ_KV_SEQ_TILE))
 
-#define HFAQ_LOCAL_OUTPUT_SHAPE   \
-  gen_Shape(                      \
-      DIM_BATCHES("query"),       \
-      ADD(DIM_DEPTH("value"), 2), \
-      1,                          \
-      DIM_HEIGHT("query"))
+#define HFAQ_LOCAL_OUTPUT_SHAPE \
+  gen_Shape(                    \
+      DIM_BATCHES("query"), ADD(DIM_DEPTH("value"), 2), 1, HFAQ_ACC_HEAD_TILE)
+
+#define HFAQ_FINAL_OUTPUT_SHAPE \
+  gen_Shape(DIM_BATCHES("query"), DIM_HEIGHT("query"), 1, DIM_DEPTH("value"))
 
 // HFAQLocal(KV_slice) -> Out -> (1, Dv + 2, 1, H) -> FP32
 #define HFAQ_LOCAL_RECURSIVE_OP(IDX)                             \
