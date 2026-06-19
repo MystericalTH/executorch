@@ -2,6 +2,7 @@ import torch
 
 from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests import (
     o0_test_exp2_hf,
+    o10000_test_sdpa_baseline,
     o1000_test_hfaq,
     o1001_test_hfa,
     o100_test_hfaq_local,
@@ -29,6 +30,7 @@ test_modules = [
     o101_test_hfaq_merge,
     o1000_test_hfaq,
     o1001_test_hfa,
+    o10000_test_sdpa_baseline,
 ]
 
 

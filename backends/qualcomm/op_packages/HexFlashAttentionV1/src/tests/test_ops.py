@@ -298,7 +298,10 @@ def main(args):
     print("Abs Pct Error:", glob_pct_error, "%")
     print("No. of nan:", torch.isnan(device_output).sum().item())
 
-    benchmark_debug_logs(f"{args.artifact}/outputs/debug_logs.txt")
+    try:
+        benchmark_debug_logs(f"{args.artifact}/outputs/debug_logs.txt")
+    except:
+        print("benchmark failed")
 
 
 if __name__ == "__main__":
