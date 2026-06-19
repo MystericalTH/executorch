@@ -130,6 +130,13 @@ def get_model_instance(test_module):
     return instance
 
 
+def generate_sample_inputs(args, test_module):
+    try:
+        return test_module.generate_sample_inputs(args.kv_n)
+    except:
+        return test_module.generate_sample_inputs()
+
+
 def run_x86_64(sample_inputs: list[tuple[torch.Tensor]], pte_filename: str):
     input_list_filename = "input_list.txt"
     generate_inputs(args.artifact, input_list_filename, sample_inputs)
@@ -219,7 +226,7 @@ def main(args):
         f"{args.op_package_dir}/build/aarch64-android/{lib_name}.so",
     ]
 
-    sample_inputs = test_module.generate_sample_inputs()
+    sample_inputs = generate_sample_inputs(args, test_module)
 
     build_executorch_binary(
         model=instance,
@@ -319,6 +326,8 @@ if __name__ == "__main__":
         help="Op ID to test",
         required=True,
     )
+
+    parser.add_argument("--kv_n", help="KV Len N", type=int, default=8)
 
     parser.add_argument(
         "-a",

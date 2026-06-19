@@ -11,7 +11,7 @@ def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
     return [
         (
             torch.randn(1, 1, 1, 128, dtype=DTYPE),
-            torch.randn(1, 1, 128, 256, dtype=DTYPE),
+            torch.randn(1, 1, 128, 64, dtype=DTYPE),
         )
         for _ in range(10)
     ]
