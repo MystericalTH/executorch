@@ -30,9 +30,6 @@ from executorch.backends.qualcomm.partition.qnn_partitioner import (
     QnnPartitioner,
 )
 
-from executorch.backends.qualcomm.runtime.op_packages.HexFlashAttention.definition import (
-    get_hex_flash_op_package_config,
-)
 from executorch.backends.qualcomm.serialization.qc_schema import (
     _soc_info_table,
     HtpArch,
@@ -1195,9 +1192,6 @@ def generate_qnn_executorch_compiler_spec(  # noqa: C901
             ", because dump_intermediate_outputs will cause performance drop.",
             stacklevel=1,
         )
-
-    if not op_package_options:
-        op_package_options = get_hex_flash_op_package_config().get_op_package_options()
 
     qnn_executorch_options = QnnExecuTorchOptions(
         _soc_info_table[soc_model], backend_options
