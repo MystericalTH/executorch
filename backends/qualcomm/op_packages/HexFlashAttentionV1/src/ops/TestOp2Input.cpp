@@ -38,6 +38,9 @@ GraphStatus testop2inputImpl(
   auto in_1_ptr = in_1.raw_data_const();
   auto out_ptr = out_0.raw_data();
 
+  HVX_Vector scaleline_qf32 =
+      Q6_Vqf32_vadd_VsfVsf(Q6_V_vsplat_R(SF_ONE), Q6_V_vzero());
+
   auto start = std::chrono::steady_clock::now();
 
   switch (op_id_val) {
@@ -47,7 +50,8 @@ GraphStatus testop2inputImpl(
           (Float16*)in_0_ptr,
           (Float16*)in_1_ptr,
           in_0.dim(3),
-          in_1.dim(3));
+          in_1.dim(3),
+          scaleline_qf32);
       break;
     default:
       return GraphStatus::ErrorBadInput;

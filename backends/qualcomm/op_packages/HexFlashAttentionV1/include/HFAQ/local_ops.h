@@ -18,10 +18,12 @@ static inline void q_heads_scale_matmul_kt_mask(
     const size_t qk_emb,
     Float16* scr_block_ptr) {
   auto k_t_ptr = scr_block_ptr;
+  const HVX_Vector scaleline =
+      Q6_Vqf32_vadd_VsfVsf(Q6_V_vsplat_R(rscale), Q6_V_vzero());
   for (uint16_t h = 0; h < num_heads; ++h) {
     hvx_mat_transposeMxN_Vhf(k_t_ptr, k_ptr, HFAQ_KV_SEQ_TILE, qk_emb);
     hvx_Vhf_matmul1x64N_Vhf(
-        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_TILE, rscale);
+        att_row_ptr, q_ptr, k_t_ptr, qk_emb, HFAQ_KV_SEQ_TILE, scaleline);
     *(HVX_Vector*)att_row_ptr =
         Q6_Vhf_vadd_VhfVhf(*(HVX_Vector*)att_row_ptr, attn_mask_vec);
 
