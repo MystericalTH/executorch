@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import subprocess
 import sys
+from collections import defaultdict
 from multiprocessing.connection import Client
 
 import numpy as np
@@ -49,6 +51,10 @@ class Base2InputTestModel(torch.nn.Module):
         return torch.ops.hex_flash_test.test_op_2_input.default(
             input_0, input_1, self.op_id
         )
+
+
+def _run(cmd, cwd=None):
+    subprocess.run(cmd, stdout=sys.stdout, cwd=cwd, check=True)
 
 
 def get_test_op_package_config(android_workspace: str = None):
@@ -124,8 +130,53 @@ def get_model_instance(test_module):
     return instance
 
 
-def _run(cmd, cwd=None):
-    subprocess.run(cmd, stdout=sys.stdout, cwd=cwd, check=True)
+def run_x86_64(sample_inputs: list[tuple[torch.Tensor]], pte_filename: str):
+    input_list_filename = "input_list.txt"
+    generate_inputs(args.artifact, input_list_filename, sample_inputs)
+    qnn_sdk = os.getenv("QNN_SDK_ROOT")
+    assert qnn_sdk, "QNN_SDK_ROOT was not found in environment variable"
+    target = "x86_64-linux-clang"
+    build_folder = os.path.abspath(args.build_folder)
+    artifact = os.path.abspath(args.artifact)
+
+    runner_cmd = " ".join(
+        [
+            f"export LD_LIBRARY_PATH={qnn_sdk}/lib/{target}/:{build_folder}/lib &&",
+            f"{build_folder}/examples/qualcomm/executor_runner/qnn_executor_runner",
+            f"--model_path {artifact}/{pte_filename}.pte",
+            f"--input_list_path {artifact}/{input_list_filename}",
+            f"--output_folder_path {artifact}/outputs",
+        ]
+    )
+    subprocess.run(
+        runner_cmd,
+        shell=True,
+        executable="/bin/bash",
+        cwd=artifact,
+    )
+
+
+def benchmark_debug_logs(debug_path: str):
+    benchmark_list = [
+        "HFAQFinalize",
+        "HFAQMerge",
+        "HFAQLocal_QKT",
+        "HFAQLocal_Stats",
+        "HFAQLocal_ATTV",
+    ]
+    time_counter: dict[str, list[float]] = defaultdict(list)
+
+    with open(debug_path, "r") as file:
+        for line in file:
+            for name in benchmark_list:
+                if name in line:
+                    match = re.search(r"took:\s*(\d+\.\d+)", line)
+                    time_counter[name].append(float(match.group(1)))
+                    break
+
+    print("Average Time (μs)")
+    for key, value in time_counter.items():
+        print(f"{key}: {np.average(value).round(4)} μs")
 
 
 def main(args):
@@ -183,29 +234,7 @@ def main(args):
     make_output_dir(output_data_folder)
 
     if args.enable_x86_64:
-        input_list_filename = "input_list.txt"
-        generate_inputs(args.artifact, input_list_filename, sample_inputs)
-        qnn_sdk = os.getenv("QNN_SDK_ROOT")
-        assert qnn_sdk, "QNN_SDK_ROOT was not found in environment variable"
-        target = "x86_64-linux-clang"
-        build_folder = os.path.abspath(args.build_folder)
-        artifact = os.path.abspath(args.artifact)
-
-        runner_cmd = " ".join(
-            [
-                f"export LD_LIBRARY_PATH={qnn_sdk}/lib/{target}/:{build_folder}/lib &&",
-                f"{build_folder}/examples/qualcomm/executor_runner/qnn_executor_runner",
-                f"--model_path {artifact}/{pte_filename}.pte",
-                f"--input_list_path {artifact}/{input_list_filename}",
-                f"--output_folder_path {artifact}/outputs",
-            ]
-        )
-        subprocess.run(
-            runner_cmd,
-            shell=True,
-            executable="/bin/bash",
-            cwd=artifact,
-        )
+        run_x86_64(sample_inputs, pte_filename)
     else:
         # setup required params accordingly
         # qnn_config    : QnnConfig that saves config info
@@ -268,6 +297,8 @@ def main(args):
     print("Mean Abs Error", torch.abs(device_output - x86_golden).mean().item())
     print("Abs Pct Error:", glob_pct_error, "%")
     print("No. of nan:", torch.isnan(device_output).sum().item())
+
+    benchmark_debug_logs(f"{args.artifact}/outputs/debug_logs.txt")
 
 
 if __name__ == "__main__":

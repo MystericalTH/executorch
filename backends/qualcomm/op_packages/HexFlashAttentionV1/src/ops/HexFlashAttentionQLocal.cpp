@@ -102,6 +102,8 @@ GraphStatus hexflashattentionqlocalImpl(
 
   auto att_row_ptr = scr_block_1_ptr;
 
+  TIMER_START;
+
   q_heads_scale_matmul_kt_mask(
       att_row_ptr,
       q_ptr,
@@ -111,6 +113,10 @@ GraphStatus hexflashattentionqlocalImpl(
       num_heads,
       qk_emb,
       scr_block_0_ptr);
+
+  TIMER_END("HFAQLocal_QKT");
+
+  TIMER_RESET;
 
   auto att_t_ptr = att_row_ptr;
 
@@ -129,6 +135,10 @@ GraphStatus hexflashattentionqlocalImpl(
   hvx_mat_transposeMxN_Vsf(
       att_ptr, (float*)att_t_ptr, HFAQ_KV_SEQ_TILE, HFAQ_ACC_HEAD_TILE);
 
+  TIMER_END("HFAQLocal_Stats");
+
+  TIMER_RESET;
+
   auto att_x_v_ptr = (float*)scr_block_1_ptr;
 
   // for each head do: matmul(ATT, V)
@@ -136,6 +146,8 @@ GraphStatus hexflashattentionqlocalImpl(
 
   // transpose for merging
   hvx_mat_transposeMxN_Vsf(out_ptr, att_x_v_ptr, HFAQ_ACC_HEAD_TILE, v_emb);
+
+  TIMER_END("HFAQLocal_ATTV");
 
   *(HVX_Vector*)out_max_ptr = local_max_vec;
   *(HVX_Vector*)out_l_ptr = local_l_vec;

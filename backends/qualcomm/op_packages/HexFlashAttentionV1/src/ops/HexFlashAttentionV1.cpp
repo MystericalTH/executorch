@@ -52,18 +52,6 @@ DEF_PACKAGE_OP(
      "scale",               \
      "enable_gqa")
 
-RELAXED_PRECISION_OP(
-    ORIGINAL_OP,
-    AND(IS_FLOAT32_ALL("query", "key", "value", "attn_mask", "scale")),
-    Op("HexFlashAttentionV1",
-       CAST_FP16("query"),
-       CAST_FP16("key"),
-       CAST_FP16("value"),
-       CAST_FP16("attn_mask"),
-       "is_causal",
-       "scale",
-       "enable_gqa"))
-
 DEF_PACKAGE_OPTIMIZATION(
     EARLY,
     ORIGINAL_OP,
@@ -73,10 +61,10 @@ DEF_PACKAGE_OPTIMIZATION(
         "I",
         HFAQ_INIT_HEAD_TILE,
         Op("HexFlashAttentionQ",
-           TYPICAL_SLICE("query", "I"),
-           TYPICAL_SLICE("key", "I"),
-           TYPICAL_SLICE("value", "I"),
-           "attn_mask",
+           TYPICAL_SLICE(CAST_FP16("query"), "I"),
+           TYPICAL_SLICE(CAST_FP16("key"), "I"),
+           TYPICAL_SLICE(CAST_FP16("value"), "I"),
+           CAST_FP16("attn_mask"),
            "scale",
            "enable_gqa")))
 
@@ -102,7 +90,6 @@ GraphStatus hexflashattentionv1Impl(
     const Int32Tensor& is_causal,
     const PlainFloatTensor& scale,
     const Int32Tensor& enable_gqa) {
-  errlog("%d %d %d %d", query.dim(0), query.dim(1), query.dim(2), query.dim(3));
   return GraphStatus::Success;
 }
 

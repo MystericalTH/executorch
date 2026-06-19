@@ -28,7 +28,7 @@ class TestModel(torch.nn.Module):
 
 def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
     HEADS = 32
-    KV_SEQ_LEN = 64 * 32
+    KV_SEQ_LEN = 64 * 2
     EMB_LEN = 128
     return [
         (
@@ -37,5 +37,5 @@ def generate_sample_inputs() -> list[tuple[torch.Tensor]]:
             torch.randn(1, HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
             torch.randn(1, 1, 1, KV_SEQ_LEN, dtype=DTYPE),
         )
-        for _ in range(1)
+        for _ in range(5)
     ]

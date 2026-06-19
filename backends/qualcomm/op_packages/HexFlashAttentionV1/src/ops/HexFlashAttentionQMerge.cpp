@@ -9,6 +9,7 @@
 #include "HTP/core/simple_reg.h"
 #include "QnnOpPackage.h"
 
+#include "HFAQ/debug.h"
 #include "constant.h"
 #include "hvx/hvx_exp_ops.h"
 
@@ -56,6 +57,8 @@ GraphStatus hexflashattentionqmergeImpl(
     PlainFloatTensor_TCM& out_0,
     const PlainFloatTensor_TCM& local_0,
     const PlainFloatTensor_TCM& local_1) {
+  TIMER_START;
+
   const size_t emb_len = local_0.dim(1) - 2;
 
   const size_t acc_tile_size = emb_len * HFAQ_ACC_HEAD_TILE;
@@ -98,6 +101,8 @@ GraphStatus hexflashattentionqmergeImpl(
 
   *out_max = new_max;
   *out_l = Q6_Vsf_vadd_VsfVsf(adj_l_0, adj_l_1);
+
+  TIMER_END("HFAQMerge");
 
   return GraphStatus::Success;
 }

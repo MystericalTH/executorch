@@ -37,6 +37,8 @@ GraphStatus hexflashattentionqfinalizeImpl(
     PlainFloatTensor_TCM& out_0,
     const PlainFloatTensor_TCM& in_0,
     PlainFloatTensor_TCM& scratch) {
+  TIMER_START;
+
   const auto num_heads = out_0.dim(1);
   const auto v_emb = in_0.dim(1) - 2;
   const auto acc_size = v_emb * HFAQ_ACC_HEAD_TILE;
@@ -66,6 +68,8 @@ GraphStatus hexflashattentionqfinalizeImpl(
   for (uint16_t i = 0; i < num_heads * v_emb / 32; ++i) {
     out_vec[i] = tmp2_vec[i];
   }
+
+  TIMER_END("HFAQFinalize");
 
   return GraphStatus::Success;
 }

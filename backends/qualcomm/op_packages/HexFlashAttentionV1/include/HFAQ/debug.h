@@ -7,6 +7,16 @@
 
 constexpr bool ENABLE_LOG = false;
 
+#define TIMER_START                              \
+  auto start = std::chrono::steady_clock::now(); \
+  std::chrono::duration<double, std::micro> elapsed;
+
+#define TIMER_RESET start = std::chrono::steady_clock::now();
+
+#define TIMER_END(NAME)                               \
+  elapsed = std::chrono::steady_clock::now() - start; \
+  errlog(NAME " took: %lf μs", elapsed.count());
+
 template <typename DataType>
 static inline void log_hvx_vector(DataType* ptr) {
   errlog("START");
