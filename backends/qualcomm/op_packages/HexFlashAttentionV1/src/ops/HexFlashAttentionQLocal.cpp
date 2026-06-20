@@ -162,7 +162,7 @@ class FlashAttentionQLocalImplConstructorHook : public hnnx::OpHookBase {
   // allocation.
   virtual GraphStatus pre_allocate(hnnx::OpIoPtrs const& iop, Op& op)
       const override {
-    const size_t qk_emb = op.get_input(1)->dim(3);
+    const size_t qk_emb = op.get_input(0)->dim(3);
     auto [block_0, block_1] = hfaq_local_scratch_blocks(qk_emb);
     size_t new_dims[4] = {1, 1, 1, block_0 + block_1};
     GraphStatus result =

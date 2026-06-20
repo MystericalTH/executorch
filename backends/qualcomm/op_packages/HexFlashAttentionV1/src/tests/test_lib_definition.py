@@ -12,6 +12,7 @@ from executorch.backends.qualcomm.op_packages.HexFlashAttentionV1.src.tests impo
     o3_test_mat_transpose32Mx32N,
     o4_test_mat_transpose64x64_hf,
     o50_test_matmul1x64N_hf,
+    o51_test_matmul1x64N_transpose_hf,
     o5_test_mat_transpose64Mx64N_hf,
     o6_test_inv,
 )
@@ -26,6 +27,7 @@ test_modules = [
     o5_test_mat_transpose64Mx64N_hf,
     o6_test_inv,
     o50_test_matmul1x64N_hf,
+    o51_test_matmul1x64N_transpose_hf,
     o100_test_hfaq_local,
     o101_test_hfaq_merge,
     o1000_test_hfaq,
