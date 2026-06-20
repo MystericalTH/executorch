@@ -1,14 +1,14 @@
 import os
 
 import torch
+from luthexflash.utils.weights import unpack_weights
+from torch.library import Library, impl
+
 from executorch.backends.qualcomm.custom_op.interface import QnnCustomOpPackageBuilder
 from executorch.backends.qualcomm.serialization.qc_schema import (
     QnnExecuTorchOpPackagePlatform,
     QnnExecuTorchOpPackageTarget,
 )
-from torch.library import Library, impl
-
-from luthexflash.utils.weights import unpack_weights
 
 tman_lib = Library("tman", "DEF")
 
@@ -44,6 +44,30 @@ tman_lib.define(
     "bitnet_linear.meta(Tensor x, Tensor weight, Tensor weight_scale) -> Tensor"
 )
 
+
+hex_flash_lib = Library("hex_flash", "DEF")
+
+hex_flash_lib.define("""
+    flash_attention(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor? attn_mask=None,
+        float? scale=None
+    ) -> Tensor
+    """)
+
+hex_flash_lib.define("""
+    flash_attention.out(
+        Tensor query,
+        Tensor key,
+        Tensor value,
+        Tensor? attn_mask=None,
+        float? scale=None,
+        *,
+        Tensor(a!) output
+    ) -> Tensor(a!)
+    """)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -271,6 +295,50 @@ def tman_bitnet_linear_meta(
     return torch.empty(out_shape, device="meta", dtype=x.dtype)
 
 
+@impl(hex_flash_lib, "flash_attention", dispatch_key="CompositeExplicitAutograd")
+def flash_attention_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask=None,
+    scale=None,
+) -> torch.Tensor:
+    return torch.nn.functional.scaled_dot_product_attention(
+        query=query,
+        key=key,
+        value=value,
+        attn_mask=attn_mask,
+        scale=scale,
+        enable_gqa=True,
+    )
+
+
+@impl(
+    hex_flash_lib,
+    "flash_attention.out",
+    dispatch_key="CompositeExplicitAutograd",
+)
+def flash_attention_out_impl(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attn_mask: torch.Tensor = None,
+    scale: float = None,
+    *,
+    out,
+) -> torch.Tensor:
+    result = torch.nn.functional.scaled_dot_product_attention(
+        query=query,
+        key=key,
+        value=value,
+        attn_mask=attn_mask,
+        scale=scale,
+        enable_gqa=True,
+    )
+    out.copy_(result)
+    return out
+
+
 def register_op(op_package_dir, workspace, xml_path=None):
     if xml_path is None:
         _xml_path_dir = os.path.join(op_package_dir, "config")
@@ -289,8 +357,9 @@ def register_op(op_package_dir, workspace, xml_path=None):
     op_package_config = QnnCustomOpPackageBuilder(
         xml_path=xml_path,
         torch_op_name_map={
-            "TMANLinear": torch.ops.tman.linear.default,
+            # "TMANLinear": torch.ops.tman.linear.default,
             # "TMANPrecompute": torch.ops.tman.precompute.default,
+            "FlashAttention": torch.ops.hex_flash.flash_attention.default,
         },
     )
     lib_name = f"libQnn{op_package_config.op_package_name}"

@@ -11,9 +11,11 @@ import executorch.backends.qualcomm.python.PyQnnManagerAdaptor as PyQnnWrapper
 import numpy as np
 import torch
 from luthexflash.node_register.constants import (
+    QNN_OP_PACKAGE_NAME_HEX_FLASH,
     QNN_OP_PACKAGE_NAME_QTI_AISW,
     QNN_OP_PACKAGE_NAME_TMAN,
     OpConvert,
+    OpFlashAttention,
     OpTMANFinalize,
     OpTMANLinear,
     OpTMANPrecompute,
@@ -372,9 +374,98 @@ class TMANLinear(NodeVisitor):
         return [precompute_op, linear_op, finalize_op]
 
 
-def register_node_visitor():
-    for target_name in TMANLinear.target:
-        _node_visitor_dict[target_name] = TMANLinear
-        print(
-            f"[Binary Hook Override] Successfully mapped '{target_name}' to native TMAN loop."
+class FlashAttention(NodeVisitor):
+    target = ["hex_flash.flash_attention.default"]
+
+    def __init__(self, *args) -> None:
+        super().__init__(*args)
+
+    def define_node(
+        self,
+        node: torch.fx.Node,
+        nodes_to_wrappers: Dict[torch.fx.Node, PyQnnWrapper.TensorWrapper],
+    ) -> PyQnnWrapper.PyQnnOpWrapper:
+        if len(node.args) > 4:
+            warnings.warn(
+                "[QNN Delegate Op Builder]: FlashAttention currently does not support dropout_p, causal, enable_gqa",
+                stacklevel=1,
+            )
+            return
+
+        query_node = self.get_node(node.args[0])
+        query_tensor = self.get_tensor(query_node, node)
+        query_tensor_wrapper = self.define_tensor(
+            query_node,
+            node,
+            query_tensor,
+            PyQnnWrapper.Qnn_TensorType_t.QNN_TENSOR_TYPE_NATIVE,
+            nodes_to_wrappers,
         )
+
+        key_node = self.get_node(node.args[1])
+        key_tensor = self.get_tensor(key_node, node)
+        key_tensor_wrapper = self.define_tensor(
+            key_node,
+            node,
+            key_tensor,
+            PyQnnWrapper.Qnn_TensorType_t.QNN_TENSOR_TYPE_NATIVE,
+            nodes_to_wrappers,
+        )
+
+        value_node = self.get_node(node.args[2])
+        value_tensor = self.get_tensor(value_node, node)
+        value_tensor_wrapper = self.define_tensor(
+            value_node,
+            node,
+            value_tensor,
+            PyQnnWrapper.Qnn_TensorType_t.QNN_TENSOR_TYPE_NATIVE,
+            nodes_to_wrappers,
+        )
+
+        attn_mask_node = self.get_node(node.args[3])
+        attn_mask_tensor = self.get_tensor(attn_mask_node, node)
+        attn_mask_tensor = self.define_tensor(
+            attn_mask_node,
+            node,
+            attn_mask_tensor,
+            PyQnnWrapper.Qnn_TensorType_t.QNN_TENSOR_TYPE_NATIVE,
+            nodes_to_wrappers,
+        )
+
+        output_tensor = self.get_tensor(node, node)
+        output_tensor_wrapper = self.define_tensor(
+            node,
+            node,
+            output_tensor,
+            PyQnnWrapper.Qnn_TensorType_t.QNN_TENSOR_TYPE_NATIVE,
+            nodes_to_wrappers,
+        )
+
+        scale = node.args[6] if len(node.args) > 6 else node.kwargs.get("scale")
+
+        flash_attention_op = PyQnnWrapper.PyQnnOpWrapper(
+            node.name,
+            QNN_OP_PACKAGE_NAME_HEX_FLASH,
+            OpFlashAttention.op_name,
+        )
+        flash_attention_op.AddInputTensors(
+            [
+                query_tensor_wrapper,
+                key_tensor_wrapper,
+                value_tensor_wrapper,
+                attn_mask_tensor,
+            ]
+        )
+        flash_attention_op.AddOutputTensors([output_tensor_wrapper])
+        flash_attention_op.AddScalarParam(
+            OpFlashAttention.param_scale,
+            PyQnnWrapper.Qnn_DataType_t.QNN_DATATYPE_FLOAT_32,
+            {QCOM_DATA: np.float32(scale) if scale else 0},
+        )
+        return flash_attention_op
+
+
+def register_node_visitor():
+    for target_name in FlashAttention.target:
+        _node_visitor_dict[target_name] = TMANLinear
+        print(f"[Binary Hook Override] Successfully mapped '{target_name}' to native.")

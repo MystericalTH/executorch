@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 QNN_OP_PACKAGE_NAME_TMAN = "TMANOpPackage"
 QNN_OP_PACKAGE_NAME_QTI_AISW = "qti.aisw"
+QNN_OP_PACKAGE_NAME_HEX_FLASH = "HexFlashAttention"
 
 
 @dataclass(init=False, frozen=True)
@@ -31,3 +32,9 @@ class OpTMANFinalize:
     param_group_size: str = "group_size"
     param_bits: str = "bits"
     param_symmetric: str = "symmetric"
+
+
+@dataclass(init=False, frozen=True)
+class OpFlashAttention:
+    op_name: str = "FlashAttention"
+    param_scale: str = "scale"
