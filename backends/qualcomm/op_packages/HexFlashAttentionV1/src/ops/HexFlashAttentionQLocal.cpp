@@ -93,7 +93,7 @@ GraphStatus hexflashattentionqlocalImpl(
   auto out_max_ptr = out_ptr + out_acc_size;
   auto out_l_ptr = out_max_ptr + HFAQ_ACC_HEAD_TILE;
 
-  const auto [scr_block_0, scr_block_1] = hfaq_local_scratch_blocks(qk_emb);
+  const auto [scr_block_0, scr_block_1] = hfaq_local_scratch_blocks(v_emb);
   auto scr_block_0_ptr = scratch.data_ptr();
   auto scr_block_1_ptr = scr_block_0_ptr + scr_block_0;
 
@@ -162,8 +162,8 @@ class FlashAttentionQLocalImplConstructorHook : public hnnx::OpHookBase {
   // allocation.
   virtual GraphStatus pre_allocate(hnnx::OpIoPtrs const& iop, Op& op)
       const override {
-    const size_t qk_emb = op.get_input(0)->dim(3);
-    auto [block_0, block_1] = hfaq_local_scratch_blocks(qk_emb);
+    const size_t v_emb = op.get_input(2)->dim(3);
+    auto [block_0, block_1] = hfaq_local_scratch_blocks(v_emb);
     size_t new_dims[4] = {1, 1, 1, block_0 + block_1};
     GraphStatus result =
         hnnx::change_output_tensor_shape(op, 1, iop.graph(), 4, new_dims);

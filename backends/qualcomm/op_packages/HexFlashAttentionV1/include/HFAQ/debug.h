@@ -5,11 +5,9 @@
 
 #include "constant.h"
 
-constexpr bool ENABLE_LOG = false;
+#define ENABLE_LOG true
 
-#define ENABLE_TIMER
-
-#ifdef ENABLE_TIMER
+#ifdef ENABLE_LOG
 
 #define TIMER_START                              \
   auto start = std::chrono::steady_clock::now(); \
@@ -22,9 +20,11 @@ constexpr bool ENABLE_LOG = false;
   errlog(NAME " took: %lf μs", elapsed.count());
 
 #else
+
 #define TIMER_START
 #define TIMER_RESET
 #define TIMER_END(NAME)
+
 #endif
 
 template <typename DataType>
@@ -78,11 +78,12 @@ static inline void log_hfaq_local_memfp(
     return;
   }
   auto [oB, oH, oW, oD] = out_0.dims();
+  auto [sB, sH, sW, sD] = scratch.dims();
   errlog(
       "[HFAQLocal]\n"
       "[Input] query: %zu bytes, key: %zu bytes, value: %zu bytes, attn_mask: %zu bytes, scale: %zu bytes\n"
       "[Output] out (%d %d %d %d): %zu bytes\n"
-      "[Temp] scratch: %zu bytes",
+      "[Temp] scratch (%d %d %d %d): %zu bytes",
       calc_tensor_elems(query) * HF_BYTES,
       calc_tensor_elems(key) * HF_BYTES,
       calc_tensor_elems(value) * HF_BYTES,
@@ -93,5 +94,9 @@ static inline void log_hfaq_local_memfp(
       oW,
       oD,
       calc_tensor_elems(out_0) * SF_BYTES,
+      sB,
+      sH,
+      sW,
+      sD,
       calc_tensor_elems(scratch) * HF_BYTES);
 }

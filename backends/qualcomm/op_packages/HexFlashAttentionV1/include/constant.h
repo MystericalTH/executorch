@@ -1,8 +1,5 @@
 #pragma once
 
-// VTCM size: 8 * 1024 * 1024
-#define VTCM_SIZE_BYTES 8388608
-
 #define HF_BYTES 2
 #define SF_BYTES 4
 
