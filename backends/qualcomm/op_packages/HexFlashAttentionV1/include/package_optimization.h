@@ -25,6 +25,30 @@
   DEF_PACKAGE_OPTIMIZATION_WITH_FLAGS(           \
       GRAPH_CLEANUP, relaxed_precision_flag, TARGET, COND, REPL)
 
+#define WIDTH_MTP_SHAPE(OP, M)                   \
+  gen_Shape(                                     \
+      DIM_BATCHES(OP),                           \
+      DIM_HEIGHT(OP),                            \
+      ADD(DIM_WIDTH(OP), MOD(DIM_WIDTH(OP), M)), \
+      DIM_DEPTH(OP))
+
+#define DEPTH_MTP_SHAPE(OP, M) \
+  gen_Shape(                   \
+      DIM_BATCHES(OP),         \
+      DIM_HEIGHT(OP),          \
+      DIM_WIDTH(OP),           \
+      ADD(DIM_DEPTH(OP), MOD(DIM_DEPTH(OP), M)))
+
+#define PAD_SHAPE(OP, PADDED_SHAPE, VAL)         \
+  WITH_SIZE(                                     \
+      PADDED_SHAPE,                              \
+      Op(FROM_DEFAULT_PACKAGE("SlicePad_shape"), \
+         OP,                                     \
+         gen_Shape(0, 0, 0, 0),                  \
+         gen_Shape(0, 0, 0, 0),                  \
+         PADDED_SHAPE,                           \
+         gen_ConstScalar_i32(VAL)))
+
 // HexFlashAttentionQ
 
 #define HFAQ_SHOULD_TILE_KV                   \
@@ -51,14 +75,11 @@
 API_EXPORT static inline QuickShape broadcast_split_start(
     Replacement& rpx,
     Split_Context const& splitinfo,
-    int dim,
     int num_all,
     int num_broadcast) {
   assert(num_all % num_broadcast == 0);
   size_t dims[4] = {0, 0, 0, 0};
-  const size_t group_size = num_all / num_broadcast;
-  const size_t group_idx = splitinfo.start / group_size;
-  dims[dim] = group_idx;
+  dims[splitinfo.dim] = (splitinfo.start * num_broadcast) / num_all;
   return QuickShape(dims[0], dims[1], dims[2], dims[3]);
 }
 
@@ -66,25 +87,27 @@ API_EXPORT static inline QuickShape broadcast_split_size(
     Replacement& rpx,
     Split_Context const& splitinfo,
     OpRef const& orig,
-    int dim) {
+    int num_all,
+    int num_broadcast) {
+  assert(num_all % num_broadcast == 0);
   size_t dims[4] = {
       orig.dim(rpx.graph(), 0),
       orig.dim(rpx.graph(), 1),
       orig.dim(rpx.graph(), 2),
       orig.dim(rpx.graph(), 3)};
-  dims[dim] = splitinfo.size;
+  dims[splitinfo.dim] = (splitinfo.size * num_broadcast) / num_all;
   return QuickShape(dims[0], dims[1], dims[2], dims[3]);
 }
 
 // Broadcast slices from smaller (N_BROADCAST) to larger (N_ALL)
 // Example:
 //      - A(1,32,S,D), B(1,8,S,D): Broadcast B[,0] -> A[,0:4]
-#define BROADCAST_SLICE(ARG, CTX, SLICE_DIM, N_ALL, N_BROADCAST)      \
-  AUTOSPLIT_SLICE(                                                    \
-      ARG,                                                            \
-      AUTOSPLIT_SHAPEFN_APPLY(                                        \
-          broadcast_split_start, CTX, SLICE_DIM, N_ALL, N_BROADCAST), \
-      AUTOSPLIT_SHAPEFN_APPLY(broadcast_split_size, CTX, ARG))
+#define BROADCAST_SLICE(ARG, CTX, N_ALL, N_BROADCAST)                          \
+  AUTOSPLIT_SLICE(                                                             \
+      ARG,                                                                     \
+      AUTOSPLIT_SHAPEFN_APPLY(broadcast_split_start, CTX, N_ALL, N_BROADCAST), \
+      AUTOSPLIT_SHAPEFN_APPLY(                                                 \
+          broadcast_split_size, CTX, ARG, N_ALL, N_BROADCAST))
 
 API_EXPORT static inline QuickShape recursive_2_split_start(
     Replacement& rpx,

@@ -5,9 +5,9 @@
 
 #include "constant.h"
 
-#define ENABLE_LOG true
+#define ENABLE_LOG false
 
-#ifdef ENABLE_LOG
+#if ENABLE_LOG
 
 #define TIMER_START                              \
   auto start = std::chrono::steady_clock::now(); \
@@ -77,14 +77,20 @@ static inline void log_hfaq_local_memfp(
   if (!ENABLE_LOG) {
     return;
   }
+  auto [kB, kH, kW, kD] = key.dims();
   auto [oB, oH, oW, oD] = out_0.dims();
   auto [sB, sH, sW, sD] = scratch.dims();
   errlog(
       "[HFAQLocal]\n"
-      "[Input] query: %zu bytes, key: %zu bytes, value: %zu bytes, attn_mask: %zu bytes, scale: %zu bytes\n"
+      "[Input] query: %zu bytes, key (%d %d %d %d): %zu bytes, "
+      "value: %zu bytes, attn_mask: %zu bytes, scale: %zu bytes\n"
       "[Output] out (%d %d %d %d): %zu bytes\n"
       "[Temp] scratch (%d %d %d %d): %zu bytes",
       calc_tensor_elems(query) * HF_BYTES,
+      kB,
+      kH,
+      kW,
+      kD,
       calc_tensor_elems(key) * HF_BYTES,
       calc_tensor_elems(value) * HF_BYTES,
       calc_tensor_elems(attn_mask) * HF_BYTES,

@@ -15,10 +15,12 @@ static inline void q_heads_scale_matmul_kt_mask(
     const HVX_Vector attn_mask_vec,
     const uint32_t rscale,
     const size_t num_heads,
+    const size_t num_kv_heads,
     const size_t qk_emb,
     Float16* scr_block_ptr) {
   const HVX_Vector scaleline =
       Q6_Vqf32_vadd_VsfVsf(Q6_V_vsplat_R(rscale), Q6_V_vzero());
+  const size_t group = num_heads / num_kv_heads;
   for (uint16_t h = 0; h < num_heads; ++h) {
     hvx_Vhf_matmul1x64N_transpose_Vhf(
         att_row_ptr,
@@ -32,9 +34,11 @@ static inline void q_heads_scale_matmul_kt_mask(
     *(HVX_Vector*)att_row_ptr =
         Q6_Vhf_vadd_VhfVhf(*(HVX_Vector*)att_row_ptr, attn_mask_vec);
 
-    q_ptr += qk_emb; // move to next q head
-    k_ptr += qk_emb * HFAQ_KV_SEQ_TILE; // move to next k head
-    att_row_ptr += HFAQ_KV_SEQ_TILE; // move to next head row
+    q_ptr += qk_emb;
+    if ((h + 1) % group == 0) {
+      k_ptr += qk_emb * HFAQ_KV_SEQ_TILE;
+    }
+    att_row_ptr += HFAQ_KV_SEQ_TILE;
   }
 }
 
@@ -76,13 +80,17 @@ static inline void att_heads_matmul_v(
     float* att_ptr,
     Float16* v_ptr,
     const size_t num_heads,
+    const size_t num_kv_heads,
     const size_t v_emb) {
+  const size_t group = num_heads / num_kv_heads;
   for (uint16_t h = 0; h < num_heads; ++h) {
     hvx_Vsf_matmul1x64N_VsfVhf(
         out_row_ptr, att_ptr, v_ptr, HFAQ_KV_SEQ_TILE, v_emb);
 
     att_ptr += HFAQ_KV_SEQ_TILE;
-    v_ptr += v_emb * HFAQ_KV_SEQ_TILE;
+    if ((h + 1) % group == 0) {
+      v_ptr += v_emb * HFAQ_KV_SEQ_TILE;
+    }
     out_row_ptr += v_emb;
   }
 }
