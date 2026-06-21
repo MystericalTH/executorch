@@ -82,6 +82,7 @@ GraphStatus hexflashattentionqlocalImpl(
   log_hfaq_local_memfp(out_0, query, key, value, attn_mask, scale, scratch);
 
   const auto num_heads = query.dim(1);
+  const auto num_kv_heads = key.dim(1);
   const auto qk_emb = query.dim(3);
   const auto v_emb = value.dim(3);
   auto q_ptr = query.data_ptr();
@@ -111,6 +112,7 @@ GraphStatus hexflashattentionqlocalImpl(
       attn_mask_vec,
       rscale,
       num_heads,
+      num_kv_heads,
       qk_emb,
       scr_block_0_ptr);
 
@@ -142,7 +144,8 @@ GraphStatus hexflashattentionqlocalImpl(
   auto att_x_v_ptr = (float*)scr_block_1_ptr;
 
   // for each head do: matmul(ATT, V)
-  att_heads_matmul_v(att_x_v_ptr, att_ptr, v_ptr, num_heads, v_emb);
+  att_heads_matmul_v(
+      att_x_v_ptr, att_ptr, v_ptr, num_heads, num_kv_heads, v_emb);
 
   // transpose for merging
   hvx_mat_transposeMxN_Vsf(out_ptr, att_x_v_ptr, HFAQ_ACC_HEAD_TILE, v_emb);

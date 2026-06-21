@@ -21,20 +21,21 @@ class TestModel(torch.nn.Module):
             value,
             attn_mask,
             is_causal=False,
-            enable_gqa=False,
+            enable_gqa=True,
             scale=scale,
         )
 
 
 def generate_sample_inputs(n=8) -> list[tuple[torch.Tensor]]:
-    HEADS = 32
+    Q_HEADS = 32
+    KV_HEADS = 8
     KV_SEQ_LEN = 64 * n
     EMB_LEN = 128
     return [
         (
-            torch.randn(1, HEADS, 1, EMB_LEN, dtype=DTYPE),
-            torch.randn(1, HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
-            torch.randn(1, HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
+            torch.randn(1, Q_HEADS, 1, EMB_LEN, dtype=DTYPE),
+            torch.randn(1, KV_HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
+            torch.randn(1, KV_HEADS, KV_SEQ_LEN, EMB_LEN, dtype=DTYPE),
             torch.randn(1, 1, 1, KV_SEQ_LEN, dtype=DTYPE),
         )
         for _ in range(10)

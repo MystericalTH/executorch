@@ -52,6 +52,9 @@ DEF_PACKAGE_OP(
      "scale",               \
      "enable_gqa")
 
+#define GQA_SLICE(IN, CTX) \
+  BROADCAST_SLICE(IN, "I", DIM_HEIGHT("query"), DIM_HEIGHT("key"))
+
 DEF_PACKAGE_OPTIMIZATION(
     EARLY,
     ORIGINAL_OP,
@@ -62,8 +65,8 @@ DEF_PACKAGE_OPTIMIZATION(
         HFAQ_INIT_HEAD_TILE,
         Op("HexFlashAttentionQ",
            TYPICAL_SLICE(CAST_FP16("query"), "I"),
-           TYPICAL_SLICE(CAST_FP16("key"), "I"),
-           TYPICAL_SLICE(CAST_FP16("value"), "I"),
+           GQA_SLICE(CAST_FP16("key"), "I"),
+           GQA_SLICE(CAST_FP16("value"), "I"),
            CAST_FP16("attn_mask"),
            "scale",
            "enable_gqa")))

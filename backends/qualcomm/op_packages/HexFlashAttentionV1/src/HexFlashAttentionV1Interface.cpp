@@ -241,6 +241,13 @@ Qnn_ErrorHandle_t HexFlashAttentionV1ValidateOpConfig(Qnn_OpConfig_t opConfig) {
         opConfig.v1.numOfOutputs != 1) {
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }
+    const auto enable_gqa = opConfig.v1.params[2].scalarParam.int32Value;
+    const auto q_heads = opConfig.v1.inputTensors[0].v1.dimensions[1];
+    const auto k_heads = opConfig.v1.inputTensors[1].v1.dimensions[1];
+    if (!enable_gqa && q_heads != k_heads) {
+      errlog("mismatch head dimensions, GQA is not enabled");
+      return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
+    }
   } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQMerge") {
     if (opConfig.v1.numOfParams != 0 || opConfig.v1.numOfInputs != 2 ||
         opConfig.v1.numOfOutputs != 1) {
@@ -265,12 +272,6 @@ Qnn_ErrorHandle_t HexFlashAttentionV1ValidateOpConfig(Qnn_OpConfig_t opConfig) {
   } else if (std::string(opConfig.v1.typeName) == "HexFlashAttentionQ") {
     if (opConfig.v1.numOfParams != 2 || opConfig.v1.numOfInputs != 4 ||
         opConfig.v1.numOfOutputs != 1) {
-      errlog(
-          "[HexFlashAttentionQ] "
-          "%d %d %d",
-          opConfig.v1.numOfParams,
-          opConfig.v1.numOfInputs,
-          opConfig.v1.numOfOutputs);
       return QNN_OP_PACKAGE_ERROR_VALIDATION_FAILURE;
     }
   } else if (std::string(opConfig.v1.typeName) == "TestOp2Input") {
