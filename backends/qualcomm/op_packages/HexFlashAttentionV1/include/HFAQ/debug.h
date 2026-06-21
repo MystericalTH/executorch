@@ -5,9 +5,9 @@
 
 #include "constant.h"
 
-#define ENABLE_LOG true
+#define ENABLE_LOG false
 
-#ifdef ENABLE_LOG
+#if ENABLE_LOG
 
 #define TIMER_START                              \
   auto start = std::chrono::steady_clock::now(); \

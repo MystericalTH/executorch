@@ -25,6 +25,30 @@
   DEF_PACKAGE_OPTIMIZATION_WITH_FLAGS(           \
       GRAPH_CLEANUP, relaxed_precision_flag, TARGET, COND, REPL)
 
+#define WIDTH_MTP_SHAPE(OP, M)                   \
+  gen_Shape(                                     \
+      DIM_BATCHES(OP),                           \
+      DIM_HEIGHT(OP),                            \
+      ADD(DIM_WIDTH(OP), MOD(DIM_WIDTH(OP), M)), \
+      DIM_DEPTH(OP))
+
+#define DEPTH_MTP_SHAPE(OP, M) \
+  gen_Shape(                   \
+      DIM_BATCHES(OP),         \
+      DIM_HEIGHT(OP),          \
+      DIM_WIDTH(OP),           \
+      ADD(DIM_DEPTH(OP), MOD(DIM_DEPTH(OP), M)))
+
+#define PAD_SHAPE(OP, PADDED_SHAPE, VAL)         \
+  WITH_SIZE(                                     \
+      PADDED_SHAPE,                              \
+      Op(FROM_DEFAULT_PACKAGE("SlicePad_shape"), \
+         OP,                                     \
+         gen_Shape(0, 0, 0, 0),                  \
+         gen_Shape(0, 0, 0, 0),                  \
+         PADDED_SHAPE,                           \
+         gen_ConstScalar_i32(VAL)))
+
 // HexFlashAttentionQ
 
 #define HFAQ_SHOULD_TILE_KV                   \

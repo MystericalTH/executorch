@@ -55,10 +55,48 @@ DEF_PACKAGE_OP(
 #define GQA_SLICE(IN, CTX) \
   BROADCAST_SLICE(IN, "I", DIM_HEIGHT("query"), DIM_HEIGHT("key"))
 
+// Currently only supports HexFlashAttentionQ so we tile query to fit HFAQ
 DEF_PACKAGE_OPTIMIZATION(
     EARLY,
     ORIGINAL_OP,
-    EQ(DIM_WIDTH("query"), 1),
+    GT(DIM_WIDTH("query"), 1),
+    AUTOSPLIT(
+        2,
+        "I",
+        1,
+        Op("HexFlashAttentionV1",
+           TYPICAL_SLICE("query", "I"),
+           "key",
+           "value",
+           TYPICAL_SLICE("attn_mask", "I"),
+           "is_causal",
+           "scale",
+           "enable_gqa")))
+
+// Pad KV to multiple of HFAQ_KV_SEQ_TILE
+DEF_PACKAGE_OPTIMIZATION(
+    EARLY,
+    ORIGINAL_OP,
+    AND(NE(MOD(DIM_WIDTH("key"), HFAQ_KV_SEQ_TILE), 0),
+        NE(MOD(DIM_WIDTH("value"), HFAQ_KV_SEQ_TILE), 0)),
+    Op("HexFlashAttentionV1",
+       "query",
+       PAD_SHAPE("key", WIDTH_MTP_SHAPE("key", HFAQ_KV_SEQ_TILE), 0),
+       PAD_SHAPE("value", WIDTH_MTP_SHAPE("value", HFAQ_KV_SEQ_TILE), 0),
+       PAD_SHAPE(
+           "attn_mask",
+           DEPTH_MTP_SHAPE("attn_mask", HFAQ_KV_SEQ_TILE),
+           -10000),
+       "is_causal",
+       "scale",
+       "enable_gqa"))
+
+DEF_PACKAGE_OPTIMIZATION(
+    EARLY,
+    ORIGINAL_OP,
+    AND(EQ(DIM_WIDTH("query"), 1),
+        EQ(MOD(DIM_WIDTH("key"), HFAQ_KV_SEQ_TILE), 0),
+        EQ(MOD(DIM_WIDTH("value"), HFAQ_KV_SEQ_TILE), 0)),
     AUTOSPLIT(
         1,
         "I",
